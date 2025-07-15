@@ -186,7 +186,7 @@ def get_chosen_state_action(user_strategy : dict, results : list):
     return chosen_actions
 
 def reach_state(model, state):
-    parser = PrismParser('/home/paul/Downloads/prism-4.8.1-linux64-x86/bin/prism', model)
+    parser = PrismParser('~/prism-4.8.1-linux64-x86/bin/prism', model)
     return parser.call_prism(""" Pmax=? [F """ + f'{state}' + "] """)
     # 'Pmax=? [F "positive"]'
     assert False
