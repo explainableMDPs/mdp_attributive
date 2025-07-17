@@ -16,7 +16,7 @@ random.seed(seed)
 
 
 from Result import PrismResult
-from PrismParser import PrismParser
+from PrismParser import PrismParser, StormParser
 
 import pyrootutils
 path = pyrootutils.find_root(search_from=__file__, indicator=".project-root")
@@ -29,7 +29,9 @@ cwd=True, # change current working directory to the root directory (helps with f
 )
 
 PRISM_PATH = ''
+STORM_PATH = ''
 TIMEOUT = 60 # in seconds
+SOLVER = ''
 
 def get_parser(name):
     if name == 'greps':
@@ -161,18 +163,26 @@ def run_experiment(param):
 State can be "positive" or loc={i}.
 """
 def reach_state(model, state):
-    parser = PrismParser(PRISM_PATH, model, TIMEOUT)
+    parser = None
+    if SOLVER == 'PRISM':
+        parser = PrismParser(PRISM_PATH, model, TIMEOUT)
+    if SOLVER == 'Storm':
+        parser = StormParser(STORM_PATH, model, TIMEOUT)
     # 'Pmax=? [F "positive"]'
-    return parser.call_prism(""" Pmax=? [F """ + f'{state}' + "] """, "reach_state")
+    return parser.call(""" Pmax=? [F """ + f'{state}' + "] """, "reach_state")
 
 """
 State_id must be integer to not break encoding to PRISM.
 """
 def avoid_positive_until_state(model, state_id):
     assert type(state_id) == int , f'Type of state_id {type(state_id)}'
-    parser = PrismParser(PRISM_PATH, model, TIMEOUT)
+    parser = None
+    if SOLVER == 'PRISM':
+        parser = PrismParser(PRISM_PATH, model, TIMEOUT)
+    if SOLVER == 'Storm':
+        parser = StormParser(STORM_PATH, model, TIMEOUT)
     # 'Pmax=? [F "positive" & (! "positive" U loc=state_reach)]'
-    return parser.call_prism(f'Pmax=? [(F "positive") & (!("positive") U loc={state_id})]', "avoid_state")
+    return parser.call(f'Pmax=? [(F "positive") & (!("positive") U loc={state_id})]', "avoid_state")
 
 """
 Helper function to parse the label information at the end of the PRISM file.
@@ -191,12 +201,16 @@ def get_label_dict(model):
 Formula encoding path recursively
 """
 def follow_path(model, path, name=""):
-    parser = PrismParser(PRISM_PATH, model, TIMEOUT)
+    parser = None
+    if SOLVER == 'PRISM':
+        parser = PrismParser(PRISM_PATH, model, TIMEOUT)
+    if SOLVER == 'Storm':
+        parser = StormParser(STORM_PATH, model, TIMEOUT)
     # parse label from PRISM file
     label_dict = get_label_dict(model)
     if any([e not in label_dict for e in path]):
         print("WARNING: skipped path")
-        return PrismResult(model, path, 0, -1, 0, 0, name, TIMEOUT).df()
+        return PrismResult(model, path, 0, -1, 0, 0, 0, name, TIMEOUT, "").df()
     
     def construct_path(inner_path):
         if len(inner_path) == 1:
@@ -205,7 +219,7 @@ def follow_path(model, path, name=""):
     
     # print('constructed path', path, "-", construct_path(path[1:]))
     
-    return parser.call_prism(f'Pmax=? [(F "positive") & ({construct_path(path[1:])})]', name)
+    return parser.call(f'Pmax=? [(F "positive") & ({construct_path(path[1:])})]', name)
 
 def manual_execution():
     assert args
@@ -247,13 +261,17 @@ if __name__ == '__main__':
     parser.add_argument('-mi', '--model_iterations', help = "Number of models to generate for each setting", type=int, default = 10)
     parser.add_argument('-as', '--all_spotify', help = "All spotify models in steps of 100 are generated", action = 'store_true')
     parser.add_argument('-pp', '--prism_path', help="Path to local PRISM executable", type=str, default='/home/ubuntu/prism-4.8.1-linux64-x86/bin/prism')
+    parser.add_argument('-sp', '--storm_path', help="Path to local Storm executable", type=str, default='/home/ubuntu/storm-stable/build/bin/storm')
+    parser.add_argument('-s', '--solver', help="Which solver to choose from [PRISM, Storm]", type=str, default='PRISM')
     args = parser.parse_args()
     
     assert len(args.path_length) in [2,3], f'Wrong length for Range function: 2 or 3 elements.'
     
     # set global PRISM path
     PRISM_PATH = args.prism_path
+    STORM_PATH = args.storm_path
     TIMEOUT = args.timeout
+    SOLVER = args.solver
     
     if args.all_spotify:
         args.experiments.remove('spotify')
@@ -282,8 +300,8 @@ if __name__ == '__main__':
     for e in benchmark_models:
         with open(str(e).replace(".prism", ".pickle"), 'rb') as handle: # need pickle files for nodes
             model = pickle.load(handle)
-        experiments.extend([(reach_state, e, f'loc={s}') for s in random.sample(list(range(len(model.nodes()))), k = 200)])
-        experiments.extend([(avoid_positive_until_state, e, s) for s in random.sample(list(range(len(model.nodes()))), k = 200)])
+        experiments.extend([(reach_state, e, f'loc={s}') for s in random.sample(list(range(len(model.nodes()))), k = 10)])
+        experiments.extend([(avoid_positive_until_state, e, s) for s in random.sample(list(range(len(model.nodes()))), k = 10)])
         # experiments.extend([(reach_state, e, f'loc={s}') for s in range(len(model.nodes()))])
         # experiments.extend([(avoid_positive_until_state, e, s) for s in range(len(model.nodes()))])
         
@@ -320,3 +338,4 @@ if __name__ == '__main__':
 # TODO: current path construction breaks for spotify - not sure that paths are in sub-set contained
 # TODO: all (actual) paths != 0 probability
 # TODO: test prism settings - e.g. maxiters etc.
+# TODO: unify prism and storm parser

@@ -1,2 +1,2 @@
-python3 benchmarks.py --experiments spotify100 spotify500 spotify1000 --model_iterations 10 --iterations 5 --cores 50 
-# spotify3000 spotify5000 spotify7000 spotify1000 spotify3000 spotify5000 spotify9000 --rebuild_models
+python3 benchmarks.py --experiments spotify1000 --model_iterations 1 --iterations 5 --cores 15 --timeout 3600
+# spotify100 spotify500 spotify3000 spotify5000 spotify7000 spotify1000 spotify3000 spotify5000 spotify9000 --rebuild_models

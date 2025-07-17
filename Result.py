@@ -15,24 +15,28 @@ class Result:
         return pd.DataFrame([d])
     
 class PrismResult():
-    def __init__(self, model, query, nesting, value, model_checking_time, model_construction_time, name, timeout):
+    def __init__(self, model, query, nesting, value, model_parsing_time, model_checking_time, model_construction_time, name, timeout, solver):
         self.model = model
         self.query = query
         self.nesting = nesting
         self.value = value
+        self.model_parsing_time = model_parsing_time
         self.model_checking_time = model_checking_time
         self.model_construction_time = model_construction_time
         self.name = name
         self.timeout = timeout
-    
+        self.solver = solver
+        
     def df(self):
         d = {'model':self.model, 
              'query':self.query, 
              'nesting':self.nesting,
              'value' : self.value, 
+             'model_parsing_time':self.model_checking_time,
              'model_checking_time':self.model_checking_time,
              'model_construction_time':self.model_construction_time,
              'name':self.name,
-             'timeout':self.timeout}
+             'timeout':self.timeout,
+             'solver': self.solver}
         return pd.DataFrame([d])
         
