@@ -1,2 +1,2 @@
-python3 benchmarks.py --experiments greps bpic12 bpic17-before bpic17-after bpic17-both --model_iterations 10 --iterations 5 --cores 50 --rebuild_models
-# spotify3000 spotify5000 spotify7000 spotify1000 spotify3000 spotify5000 spotify9000
+python3 benchmarks.py --experiments spotify100 spotify500 spotify1000 --model_iterations 10 --iterations 5 --cores 50 
+# spotify3000 spotify5000 spotify7000 spotify1000 spotify3000 spotify5000 spotify9000 --rebuild_models

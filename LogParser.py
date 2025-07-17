@@ -23,7 +23,7 @@ class LogParser:
         self.log_path = log_path
         self.activities_path = activities_path
         
-    def automata_learning(self):       
+    def automata_learning(self):
         model = run_Alergia(self.data_environment, automaton_type='mdp', eps=0.1, print_info=True)
         save_automaton_to_file(model, "out/model.png", file_type="png")
         return model
@@ -87,14 +87,13 @@ class LogParser:
             current = [trace[0]]
             for i in range(1, len(trace)):
                 e = trace[i]
-                previous_state = "start" if i == 1 else trace[i-1][1].replace(" ", "").replace(":", "")
+                previous_state = "start" if i == 1 else trace[i-1][1].replace(" ", "").replace(":", "").replace("#", "").replace("(", "").replace(")", "")
                 
                 # encode decision in one step
                 current.append(('env', actors[self.event_to_actor_file(e[1])].replace(" ", "").replace(":", "") + previous_state))
-                current.append((e[0].replace(" ", "").replace(":", ""), e[1].replace(" ", "").replace(":","")))
+                current.append((e[0].replace(" ", "").replace(":", "").replace("#", "").replace("(", "").replace(")", ""), e[1].replace(" ", "").replace(":","").replace("#", "").replace("(", "").replace(")", "")))
             data_environment.append(current)
         self.data_environment = data_environment
-        print(self.data_environment)
         
     def build_benchmark(self, prism_name = None):
         # load actor mapping: maps events to an actor (service provider or user)
@@ -219,8 +218,8 @@ class SpotifyParser(LogParser):
                 f.write(line[0] + ',' + ','.join([e[0] + ',' + e[1] for e in line[1:]]))
                 f.write('\n')
         model = run_JAlergia(path_to_data_file=storage_file, automaton_type='mdp', eps=0.9,
-                     path_to_jAlergia_jar='../jAlergia/alergia.jar', heap_memory='-Xmx12g')
-        assert model, f'None model for file {storage_file}'
+                     path_to_jAlergia_jar='../jAlergia/alergia.jar', heap_memory='-Xmx18g')
+        assert model, f'No model for file {storage_file}'
         os.remove(storage_file)
         # model = run_JAlergia(path_to_data_file=random.sample(self.data_environment, min(len(self.data_environment), self.number_samples)), automaton_type='mdp', eps=0.9,
         #              path_to_jAlergia_jar='../jAlergia/alergia.jar')

@@ -8,12 +8,14 @@ import argparse
 import multiprocessing
 import os
 import random
+import ast
+from functools import partial
 
 seed = 42
 random.seed(seed)
 
 
-from Result import Result
+from Result import PrismResult
 from PrismParser import PrismParser
 
 import pyrootutils
@@ -25,6 +27,9 @@ dotenv=True, # load environment variables from .env if exists in root directory
 pythonpath=True, # add root directory to the PYTHONPATH (helps with imports)
 cwd=True, # change current working directory to the root directory (helps with filepaths)
 )
+
+PRISM_PATH = ''
+TIMEOUT = 60 # in seconds
 
 def get_parser(name):
     if name == 'greps':
@@ -80,133 +85,143 @@ def build_and_write_model(input):
     with open(f'out/models/model_{name}_model-it_{i}.pickle', 'wb+') as handle:
         pickle.dump(model, handle)
                     
-def generate_paths(experiments, model_iterations, iterations, path_length_start=1, path_length_end=10):
+def generate_paths(experiments, model_iterations, iterations, path_length = (1,10,1)):
     for name in experiments:
+        parser = get_parser(name)
         for i in range(model_iterations):
             with open(f'out/models/model_{name}_model-it_{i}.pickle', 'rb') as handle:
                 model = pickle.load(handle)
-            parser = get_parser(name)
-            for path_length in range(path_length_start, path_length_end+1):
-                random_paths = list(nx.generate_random_paths(model, iterations, path_length=path_length, source='q0: start'))
-                write_paths(f'out/paths/model_{name}_model-it_{i}_random_paths.txt', random_paths, append=(path_length!=path_length_start))
-                print("random paths", random_paths)
+            # add self-loop to be for generating arbitrarily long paths            
+            terminal_states = [s for s in model.nodes() if 'positive' in s or 'negative' in s]
+            assert len(terminal_states) == 2, f'Terminal states {terminal_states}'
+            for s in terminal_states:
+                model.add_edge(s, s) # add self-edge for path-generating purpose
+            # max_length = min([nx.shortest_path_length(model, source='q0: start', target=s) for s in terminal_states])
+            # print(max_length)
+            for path_length_index in range(path_length[0], path_length[1], 1 if len(path_length) == 2 else path_length[2]):
+                actual_paths = generate_actual_path(parser, model, iterations, path_length_index)
+                write_paths(f'out/paths/model_{name}_model-it_{i}_actual_paths.txt', actual_paths, append=(path_length_index!=path_length[0]))
                 
-                actual_paths = generate_actual_path(parser, model, iterations, path_length)
-                write_paths(f'out/paths/model_{name}_model-it_{i}_actual_paths.txt', actual_paths, append=(path_length!=path_length_start))
+                random_paths = list(nx.generate_random_paths(model, iterations, path_length=path_length_index, source='q0: start'))
+                # remove "q{i}: " state information
+                random_paths = [[e.split(': ')[1] for e in t] for t in random_paths]
+                write_paths(f'out/paths/model_{name}_model-it_{i}_random_paths.txt', random_paths, append=(path_length_index!=path_length[0]))
+                
 
+def contains_trace(model, s, trace):
+    # assert trace[0] in s, f'State {s} does not contain trace-start {trace[0]}'
+    if not trace:
+        return True
+    possible_transitions = [e[1] for e in model.out_edges(s) if model.edges[e]['action'] == trace[0][0] and trace[0][1] in e[1]]
+    if not possible_transitions:
+        return False
+    return any([contains_trace(model, possible_transitions[i], trace[1:]) for i in range(len(possible_transitions))]) 
 
 def generate_actual_path(parser, model, iterations, path_length):
-    
     traces = parser.get_data_trace(path_length, iterations)
-    # transform trace into path in model with right state names
+    # # keep generating traces until #iterations many are acutally contained in model
+    # traces = []
+    # while len(traces) < iterations:
+    #     print("Constructing trace")
+    #     generated_traces = parser.get_data_trace(path_length, 1)
+    #     traces.extend([t for t in generated_traces if contains_trace(model, 'q0: start', t[1:])])
+    # print("Constructed trace")
     constructed_paths = []
     for t in traces:
-        s = 'q0: start'
-        current_path = [s]
+        current_path = ['start']
         for e in t[1:path_length+1]:
-            possible_transitions = [i for i in model[s] if e[1] in i]
-            assert len(possible_transitions) == 1, f'Error, more than one possible transition {possible_transitions} for {e}'
-            current_path.append(possible_transitions[0])
-            s = possible_transitions[0]
+            current_path.append(e[1])
+            # possible_transitions = [i for i in model[s] if e[1] in i]
+            # assert len(possible_transitions) == 1, f'Error, more than one possible transition {possible_transitions} for {e}'
+            # current_path.append(possible_transitions[0])
+            # s = possible_transitions[0]
         constructed_paths.append(current_path)
     return constructed_paths
 
 def write_paths(file_path, model_paths, append=False):
     with open(f'{file_path}', 'a+' if append else 'w+') as f:
         for path in model_paths:
+            # remove here double terminal state again
+            # path_no_doubles = [path[0]]
+            # for i in range(1,len(path)):
+            #     if path[i] != path[i-1]:
+            #         path_no_doubles.append(path[i])
             f.write(str(path)+'\n')
 
 def run_experiment(param):
-    if not args:
-        diversity_runs = 4
-    else:
-        diversity_runs = args.diversity_runs
+    function = param[0]
+    model = param[1]
+    arg = param[2]
     
-    path = param[0]
-    p = param[1]
-    if p == 0:
-        p = 0.0001
-    timeout = param[2]
-    
-    model_path = str(path).split('_it_')[0].replace('user_strategies', 'models')
-    with open(f'{model_path}.pickle', 'rb') as handle:
-        model = pickle.load(handle)
-    with open(path, 'rb') as handle:
-        user_strategy = pickle.load(handle)
-    
-    print(f'Call {model_path} with reachability probability {p} on strategy {path}')
-    #r_qp = quadratic_program(model, p, user_strategy, timeout=timeout, debug=False)
-    r_qp =  solver.QuadraticProblem(model, p, user_strategy, timeout=timeout, debug=False).solve()
-    o, strat = minimum_reachability(model)
-    
-    # diversity run
-    df_results_div = r_qp.df()
-    df_results_div['id'] = 0
-    df_results_div['path'] = path
-    df_results_div['unknown_fraction'] = 1 if r_qp.status == GRB.OPTIMAL else 0
-    # df_results_div['value'] = abs(r_qp.value - r_qp_new.value)
-    
-    if r_qp.status != GRB.OPTIMAL:
-        return df_results_div
-    
-    results_div = [r_qp]
-    for i in range(diversity_runs):
-        print(f'strat {i}')
-        #r_div = diversity_program_strategy(model, p, user_strategy, results_div, timeout=args.timeout, debug=False)
-        r_div = solver.QuadraticProblem(model, p, user_strategy, timeout=timeout, debug=False).solve_diverse(results_div)
-        if r_div.status not in [GRB.OPTIMAL, GRB.SUBOPTIMAL]:
-            continue
-        previously_chosen_actions = get_chosen_state_action(user_strategy, results_div)
-        chosen_actions = get_chosen_state_action(user_strategy, [r_div])
-        unknown_fraction = (len([a for a in chosen_actions if a not in previously_chosen_actions]) / len(chosen_actions)) if len(chosen_actions) != 0 else 0
-        results_div.append(r_div)
-        
-        new_df = r_div.df()
-        new_df['id'] = i+1
-        new_df['path'] = path
-        new_df['unknown_fraction'] = unknown_fraction
-        # new_df['value'] = abs(r_div.value - r_div_new.value)
-        df_results_div = pd.concat([df_results_div, new_df])
+    print(f'Call {function} with model {model} and arg {arg}')
 
-    return df_results_div
+    return function(model, arg)
 
-def get_chosen_state_action(user_strategy : dict, results : list):
-    chosen_actions = set()
-    for r in [r.strategy for r in results]:
-        print(user_strategy.keys())
-        print(r.keys())
-        assert user_strategy.keys() == r.keys()
-        for s in user_strategy:
-            assert s in r
-            assert user_strategy[s].keys() == r[s].keys()
-            for a in user_strategy[s]:
-                if round(user_strategy[s][a], 2) != round(r[s][a], 2):
-                    chosen_actions.add((s,a))
-    
-    return chosen_actions
-
+"""
+State can be "positive" or loc={i}.
+"""
 def reach_state(model, state):
-    parser = PrismParser('~/prism-4.8.1-linux64-x86/bin/prism', model)
-    return parser.call_prism(""" Pmax=? [F """ + f'{state}' + "] """)
+    parser = PrismParser(PRISM_PATH, model, TIMEOUT)
     # 'Pmax=? [F "positive"]'
-    assert False
+    return parser.call_prism(""" Pmax=? [F """ + f'{state}' + "] """, "reach_state")
+
+"""
+State_id must be integer to not break encoding to PRISM.
+"""
+def avoid_positive_until_state(model, state_id):
+    assert type(state_id) == int , f'Type of state_id {type(state_id)}'
+    parser = PrismParser(PRISM_PATH, model, TIMEOUT)
+    # 'Pmax=? [F "positive" & (! "positive" U loc=state_reach)]'
+    return parser.call_prism(f'Pmax=? [(F "positive") & (!("positive") U loc={state_id})]', "avoid_state")
+
+"""
+Helper function to parse the label information at the end of the PRISM file.
+"""
+def get_label_dict(model):
+    with open(model, 'rb') as f:
+        labels = [line.decode("utf-8") for line in f]
+        labels = [line.split('label ')[1].strip('\n') for line in labels if 'label ' in line] # also removes newline character from path
+    label_dict = {}
+    for l in labels:
+        assigned_label = l.split(" = ")
+        label_dict[assigned_label[0].replace('"', '')] = assigned_label[1].replace(';', '')
+    return label_dict
+
+"""
+Formula encoding path recursively
+"""
+def follow_path(model, path, name=""):
+    parser = PrismParser(PRISM_PATH, model, TIMEOUT)
+    # parse label from PRISM file
+    label_dict = get_label_dict(model)
+    if any([e not in label_dict for e in path]):
+        print("WARNING: skipped path")
+        return PrismResult(model, path, 0, -1, 0, 0, name, TIMEOUT).df()
+    
+    def construct_path(inner_path):
+        if len(inner_path) == 1:
+            return f'X( {label_dict[inner_path[0]]} )'
+        return f'(X( {label_dict[inner_path[0]]} & ({construct_path(inner_path[1:])})))'
+    
+    # print('constructed path', path, "-", construct_path(path[1:]))
+    
+    return parser.call_prism(f'Pmax=? [(F "positive") & ({construct_path(path[1:])})]', name)
 
 def manual_execution():
     assert args
     # manual tests
     with open('out/models/model_greps_model-it_0.pickle', 'rb') as handle: #open(f'out/models/model_{name}.pickle', 'rb') as handle:
         model = pickle.load(handle)
-    # with open('out/user_strategies/model_spotify1000_model-it_6_it_3.pickle', 'rb') as handle:
-        # user_strategy = pickle.load(handle)
-        # user_strategy = pickle.load(handle)   
-    # print("search_bounds", search_bounds(model, user_strategy))    
+    with open('out/paths/model_greps_model-it_0_random_paths.txt', 'rb') as f:
+        paths = [ast.literal_eval(line.decode("utf-8")) for line in f] # also removes newline character from path
     
-    reach_state('out/models/model_greps_model-it_0.prism', '"positive"')
+    # reach_state('out/models/model_greps_model-it_0.prism', '"positive"')
     
     print("run exp")
-    print(model.nodes())
-    print("model length", len(model))
-    results = [reach_state('out/models/model_greps_model-it_0.prism', f'loc={i}') for i in range(len(model.nodes())//10)]
+    # results = [reach_state('out/models/model_greps_model-it_0.prism', f'loc={i}') for i in range(len(model.nodes()))]
+    # results = [avoid_positive_until_state('out/models/model_greps_model-it_0.prism', i) for i in range(len(model.nodes()))]
+    results = [follow_path('out/models/model_greps_model-it_0.prism', p, 'random_path') for p in paths]
+    
     df_results = pd.DataFrame()
     stored_results = []
     for r in results:
@@ -221,20 +236,24 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
                     prog = 'benchmarks',
                     description = "File to trigger benchmarks for CE generation in MDP's")
-    parser.add_argument('-t', '--timeout', help = "Timeout for Gurobi", type=int, default = 60*60) 
-    parser.add_argument('-s', '--steps', help = "Number of steps for each model", type=int, default = 1)
+    parser.add_argument('-t', '--timeout', help = "Timeout for PRISM (in sec.)", type=int, default = 60)
     parser.add_argument('-i', '--iterations', help = "Iterations for each model", type=int, default = 1)
-    parser.add_argument('-pls', '--path_length_start', help = "Start length for paths", type=int, default = 1)
-    parser.add_argument('-ple', '--path_length_end', help = "End length for paths", type=int, default = 10)
+    parser.add_argument('-pl', '--path_length', help = "Path length range", type=int, nargs='+', default = [1,10,1])
     parser.add_argument('-c', '--cores', help = "Cores to use to parallelize experiments", type=int, default = 1)
-    parser.add_argument('-e', '--experiments', help = "Name of experiments to run", nargs='+', type=str, default = ['greps', 'bpic12', 'bpic17-before', 'bpic17-after', 'bpic17-both', 'spotify'])
+    parser.add_argument('-e', '--experiments', help = "Name of experiments to run", nargs='+', type=str, 
+                        default = ['greps', 'bpic12', 'bpic17-before', 'bpic17-after', 'bpic17-both', 'spotify'])
     parser.add_argument('-rm', '--rebuild_models', help = "Rebuild models, implies rebuilding strategies", action = 'store_true')
     parser.add_argument('-rs', '--rebuild_paths', help = "Rebuild paths for models", action = 'store_true')
     parser.add_argument('-mi', '--model_iterations', help = "Number of models to generate for each setting", type=int, default = 10)
     parser.add_argument('-as', '--all_spotify', help = "All spotify models in steps of 100 are generated", action = 'store_true')
-    parser.add_argument('-d', '--diversity_runs', help = "Number of diverse counterfactuals", type=int, default = 0)
-    parser.add_argument('-b', '--bounds', help="Bounds for gamma, evenly split by steps", nargs='+', type=float, default=[0, 1])
+    parser.add_argument('-pp', '--prism_path', help="Path to local PRISM executable", type=str, default='/home/ubuntu/prism-4.8.1-linux64-x86/bin/prism')
     args = parser.parse_args()
+    
+    assert len(args.path_length) in [2,3], f'Wrong length for Range function: 2 or 3 elements.'
+    
+    # set global PRISM path
+    PRISM_PATH = args.prism_path
+    TIMEOUT = args.timeout
     
     if args.all_spotify:
         args.experiments.remove('spotify')
@@ -247,32 +266,43 @@ if __name__ == '__main__':
     if args.rebuild_models or args.rebuild_paths:
         filename = "out/paths/test.txt"
         os.makedirs(os.path.dirname(filename), exist_ok=True)
-        generate_paths(args.experiments, args.model_iterations, args.iterations, path_length_start=args.path_length_start, path_length_end=args.path_length_end)
+        generate_paths(args.experiments, args.model_iterations, args.iterations, tuple(args.path_length))
     
     # trigger single, manual execution
-    manual_execution()
+    # manual_execution()
     
-    # for name in args.experiments:
-    benchmark_strategies = []
+    benchmark_models = []
     for name in args.experiments:
-        for i in range(args.iterations):
-            for j in range(args.model_iterations):
-                assert list(Path(f'out/user_strategies/').glob(f'*{name}_model-it_{j}*_it_{i}*.pickle'))
-                benchmark_strategies.extend(list(Path(f'out/user_strategies/').glob(f'*{name}_model-it_{j}*_it_{i}*.pickle')))
+        for i in range(args.model_iterations):
+            assert list(Path(f'out/models/').glob(f'*{name}_model-it_{i}.pickle'))
+            benchmark_models.extend(list(Path(f'out/models/').glob(f'*{name}_model-it_{i}.prism')))
+    print('Benchmarks: ', [str(b) for b in benchmark_models])
     
     experiments = []
-    for e in benchmark_strategies:
+    for e in benchmark_models:
+        with open(str(e).replace(".prism", ".pickle"), 'rb') as handle: # need pickle files for nodes
+            model = pickle.load(handle)
+        experiments.extend([(reach_state, e, f'loc={s}') for s in random.sample(list(range(len(model.nodes()))), k = 200)])
+        experiments.extend([(avoid_positive_until_state, e, s) for s in random.sample(list(range(len(model.nodes()))), k = 200)])
+        # experiments.extend([(reach_state, e, f'loc={s}') for s in range(len(model.nodes()))])
+        # experiments.extend([(avoid_positive_until_state, e, s) for s in range(len(model.nodes()))])
+        
         path = str(e).split('_it_')[0].replace('user_strategies', 'models')
         name = str(e).split('model_')[1].split('_')[0]
-        with open(f'{path}.pickle', 'rb') as handle: #out/models/model_{name}
-            model = pickle.load(handle)
-        with open(e, 'rb') as handle:
-            user_strategy = pickle.load(handle)
-        bounds = tuple(args.bounds)
-        print(bounds)
-        experiments.extend([(e, round(bounds[0] + (bounds[1] - bounds[0]) * 1/(args.steps) * s, 4), args.timeout) for s in range(args.steps+1)])
-        #experiments.append((e, 1, args.timeout))
-    # experiments = [(p, 1/(args.steps)*s, args.timeout) for p in benchmark_strategies for s in range(args.steps+1)]
+        
+        random_path_file = str(e).replace(".prism","").replace("models", "paths")+'_random_paths.txt'
+        assert Path(random_path_file)
+        with open(random_path_file, 'rb') as f:
+            paths = [ast.literal_eval(line.decode("utf-8")) for line in f]
+        experiments.extend([(partial(follow_path, name='random_path'), e, p) for p in paths])
+        
+        actual_path_file = str(e).replace(".prism","").replace("models", "paths")+'_actual_paths.txt'
+        assert Path(actual_path_file)
+        with open(actual_path_file, 'rb') as f:
+            paths = [ast.literal_eval(line.decode("utf-8")) for line in f]
+        experiments.extend([(partial(follow_path, name='actual_path'), e, p) for p in paths])
+
+    print(f'########## Start computation for {len(experiments)} experiments')
     
     df_results = pd.DataFrame()
     stored_results = []
@@ -281,13 +311,12 @@ if __name__ == '__main__':
         for r in result:
             stored_results.append(r)
             df_results = pd.concat([df_results, r])
-            df_results.to_csv("out/results_div.csv")
+            df_results.to_csv("out/results.csv")
     # result = [run_experiment_diverse(e) for e in experiments]
     result = stored_results
     print("Done")
     
     
-# TODO:
-# iterate over all states - how to get different locations?
-# build paths
-# parallelize calls
+# TODO: current path construction breaks for spotify - not sure that paths are in sub-set contained
+# TODO: all (actual) paths != 0 probability
+# TODO: test prism settings - e.g. maxiters etc.
