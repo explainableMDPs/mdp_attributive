@@ -32,7 +32,7 @@ class PrismResult():
              'query':self.query, 
              'nesting':self.nesting,
              'value' : self.value, 
-             'model_parsing_time':self.model_checking_time,
+             'model_parsing_time':self.model_parsing_time,
              'model_checking_time':self.model_checking_time,
              'model_construction_time':self.model_construction_time,
              'name':self.name,

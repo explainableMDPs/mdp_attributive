@@ -251,6 +251,7 @@ if __name__ == '__main__':
                     prog = 'benchmarks',
                     description = "File to trigger benchmarks for CE generation in MDP's")
     parser.add_argument('-t', '--timeout', help = "Timeout for PRISM (in sec.)", type=int, default = 60)
+    parser.add_argument('-sa', '--samples', help = "Number of states to sample", type=int, default = 100)
     parser.add_argument('-i', '--iterations', help = "Iterations for each model", type=int, default = 1)
     parser.add_argument('-pl', '--path_length', help = "Path length range", type=int, nargs='+', default = [1,10,1])
     parser.add_argument('-c', '--cores', help = "Cores to use to parallelize experiments", type=int, default = 1)
@@ -300,8 +301,8 @@ if __name__ == '__main__':
     for e in benchmark_models:
         with open(str(e).replace(".prism", ".pickle"), 'rb') as handle: # need pickle files for nodes
             model = pickle.load(handle)
-        experiments.extend([(reach_state, e, f'loc={s}') for s in random.sample(list(range(len(model.nodes()))), k = 10)])
-        experiments.extend([(avoid_positive_until_state, e, s) for s in random.sample(list(range(len(model.nodes()))), k = 10)])
+        experiments.extend([(reach_state, e, f'loc={s}') for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
+        experiments.extend([(avoid_positive_until_state, e, s) for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
         # experiments.extend([(reach_state, e, f'loc={s}') for s in range(len(model.nodes()))])
         # experiments.extend([(avoid_positive_until_state, e, s) for s in range(len(model.nodes()))])
         
@@ -338,4 +339,3 @@ if __name__ == '__main__':
 # TODO: current path construction breaks for spotify - not sure that paths are in sub-set contained
 # TODO: all (actual) paths != 0 probability
 # TODO: test prism settings - e.g. maxiters etc.
-# TODO: unify prism and storm parser
