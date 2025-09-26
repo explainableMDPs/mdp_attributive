@@ -358,4 +358,4 @@ if __name__ == '__main__':
 
 
 # TODO check learning for MultiDiGraph problem - they return just DiGraph
-# TODO upper and lower bounded implementieren
+# TODO clean benchmarks setting here
