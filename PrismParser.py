@@ -40,7 +40,7 @@ class PrismParser(Parser):
 class StormParser(Parser):
     def call(self, query, name, args=""):
         # result = subprocess.run([self.path, self.model, '-pf', 'Pmax=? [F "positive"]'], capture_output = True, text = True)
-        result = subprocess.run([self.path, '--prism', self.model, '--prop', query, '--exact'], capture_output = True, text = True)
+        result = subprocess.run([self.path, '--prism', self.model, '--prop', query], capture_output = True, text = True) #'--exact'
         assert not result.stderr      
         
         result_value = Parser.parse_result(result, 'Result (for initial states): ')
