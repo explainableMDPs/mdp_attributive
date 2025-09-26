@@ -1,156 +1,165 @@
 import networkx as nx
 import gurobipy as gp
 from gurobipy import GRB
-from Result import Result
-from benchmarks import strategy_diff
+from Result import GurobiResult, GurobiResultLowerUpper
 import random
 random.seed(42)
 
+def unroll(model : nx.MultiDiGraph, via_state : str, start_state = None) -> nx.MultiDiGraph:
+    """Function to unroll model around via_state and, if start_state is given, prune all states that can not be reached from start_state.
+
+    Args:
+        model (nx.MultiDiGraph): Input MDP
+        via_state (str): State to roll around
+        start_state (str, optional): Initial state in MDP. Defaults to None.
+
+    Returns:
+        nx.MultiDiGraph: Unrolled MDP
+    """
+    unrolled_model = nx.MultiDiGraph()
+    unrolled_model.add_nodes_from([(n, 'f') for n in model.nodes])
+    unrolled_model.add_nodes_from([(n, 't') for n in model.nodes])
+    for e in model.edges:
+        # e is a 3-tuple that includes the key (u,v,key) - model.edges[e] is possible
+        if e[1] == via_state:
+            unrolled_model.add_edge((e[0], 'f'), (e[1], 't'), action = model.edges[e]['action'], prob_weight= model.edges[e]['prob_weight'])
+            unrolled_model.add_edge((e[0], 't'), (e[1], 't'), action = model.edges[e]['action'], prob_weight= model.edges[e]['prob_weight'])
+        else:
+            unrolled_model.add_edge((e[0], 'f'), (e[1], 'f'), action = model.edges[e]['action'], prob_weight= model.edges[e]['prob_weight'])
+            unrolled_model.add_edge((e[0], 't'), (e[1], 't'), action = model.edges[e]['action'], prob_weight= model.edges[e]['prob_weight'])
+    
+    if start_state:
+        reachable_nodes = list(nx.dfs_postorder_nodes(unrolled_model,source=(start_state,'f')))
+        unrolled_model.remove_nodes_from([s for s in unrolled_model.nodes if s not in reachable_nodes])
+    return unrolled_model
+    
+def add_self_loops(model: nx.MultiDiGraph) -> nx.MultiDiGraph:
+    """Adds deterministic self-loop to all terminal states
+
+    Args:
+        model (nx.MultiDiGraph): Input MDP
+
+    Returns:
+        nx.MultiDiGraph: Output MDP
+    """
+    for s in model.nodes:
+        if len(model[s]) == 0:
+            model.add_edge(s, s, action = 'self_loop', prob_weight=1)
+    return model
+    
 class QuadraticProblem:
     
-    def construct_strategy_from_solution(model : nx.DiGraph, p_sa : dict, user_strategy = {}):
-        strategy = {}
-        for s in model.nodes:
-            if "positive" in s or "negative" in s:
-                continue
-            if model.edges[list(model.edges(s))[0]]['controllable'] or model.edges[list(model.edges(s))[0]]['action'] == 'env':
-                continue
-            enabled_actions = list(set([model.edges[e]['action'] for e in model.edges(s)]))
-            if s not in p_sa: # geometric program ignores states wit p = 0
-                assert user_strategy
-                strategy[s] = user_strategy[s]
-            else:
-                strategy[s] = {a : p_sa[s][a].X for a in enabled_actions}
-        
-        return strategy
-
-    def __init__(self, model : nx.DiGraph, target_prob : float, user_strategy : dict, timeout = 60*60, threads = 1, debug = False):   
+    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state, target_state : str, timeout = 10*60*60, threads = 1, debug = False):   
         self.env = gp.Env()
         self.m = gp.Model("qp", env=self.env)
         self.m.setParam('TimeLimit', timeout)
-        self.m.setParam('SoftMemLimit', 2.5)
+        self.m.setParam('SoftMemLimit', 4)
         self.m.setParam('Threads', threads)
         
-        self.model = model
-        self.target_prob = target_prob
-        self.user_strategy = user_strategy
+        self.model = unroll(add_self_loops(model), via_state, start_state)
+        self.start_state = start_state
+        self.via_state= via_state
+        self.target_state = target_state
         self.timeout = timeout
         self.debug = debug
-        
-        self.p = {s : self.m.addVar(ub=1.0, name=s, lb = 0) for s in self.model.nodes}
-        self.p_sa = {}
-        self.d_sa = {}
-        
-        self.d_0 = self.m.addVar(name='d0', lb = 0)
-        self.d_1 = self.m.addVar(name='d1', lb = 0, ub=1)
-        self.d_inf = self.m.addVar(name='d_inf', lb = 0, ub=1)
-        
-        start_state = [s for s in self.model.nodes if 'q0: start' in s]
-        assert len(start_state) == 1, start_state
-        self.start_state = start_state[0]
-        
-        target_state = [s for s in self.model.nodes if 'negative' in s]
-        assert len(target_state) == 1, target_state
-        self.target_state = target_state[0]
-                
-        self.reaching_states = [s for s in model.nodes if nx.has_path(model, s, self.target_state)]
 
+        assert start_state in model        
+        assert target_state in model
+        assert via_state in model 
+                
+        print('Nodes', self.model.nodes)
+        
+        self.p_s_t = {s : self.m.addVar(ub=1.0, name='p_t'+str(s), lb = 0) for s in self.model.nodes}
+        self.p_s_f = {s : self.m.addVar(ub=1.0, name='p_f'+str(s), lb = 0) for s in self.model.nodes}
+        print(self.p_s_f)
+        self.p_sa = {}
+
+        # start_state = [s for s in self.model.nodes if 'q0: start' in s]
+        # assert len(start_state) == 1, start_state
+        # self.start_state = start_state[0]
+        
+        # target_state = [s for s in self.model.nodes if 'negative' in s]
+        # assert len(target_state) == 1, target_state
+        # self.target_state = target_state[0]
+        if (self.target_state, 'f') not in self.model.nodes:
+            self.reaching_states = [s for s in self.model.nodes if s[0] != self.target_state and nx.has_path(self.model, s, (self.target_state, 't'))]
+            self.m.addConstr(self.p_s_t[(self.target_state, 't')] == 1)
+            self.m.addConstr(self.p_s_f[(self.target_state, 't')] == 0)
+        elif (self.target_state, 't') not in self.model.nodes:
+            self.reaching_states = [s for s in self.model.nodes if s[0] != self.target_state and nx.has_path(self.model, s, (self.target_state, 'f'))]
+            print("no pos", self.via_state)
+            self.m.addConstr(self.p_s_t[(self.target_state, 'f')] == 0)
+            self.m.addConstr(self.p_s_f[(self.target_state, 'f')] == 1)
+        else:
+            self.reaching_states = [s for s in self.model.nodes if s[0] != self.target_state and (
+                                    ((not (self.target_state, 'f')) or (nx.has_path(self.model, s, (self.target_state, 'f'))))
+                                    or nx.has_path(self.model, s, (self.target_state, 't')))]
+            self.m.addConstr(self.p_s_f[(self.target_state, 'f')] == 1)
+            self.m.addConstr(self.p_s_f[(self.target_state, 't')] == 0)
+            self.m.addConstr(self.p_s_t[(self.target_state, 'f')] == 0)
+            self.m.addConstr(self.p_s_t[(self.target_state, 't')] == 1)
+
+        if debug:
+            print("Reaching states", self.reaching_states)
+        # default values
+
+        
         self.encode_actions()
         self.encode_model()
-        self.reachability_constraint()
         
-        self.strict_proximal()
-        # relaxed proximal
-        # use d_sa to encode d_1 norm
-        self.m.addConstr(self.d_1 == sum([0.5 * sum(self.d_sa[s].values()) for s in self.d_sa]) / len(self.user_strategy))
-        self.encode_sparsity()
+        self.goal_var = self.m.addVar(ub=1.0, name='goal variable', lb = 0)
+        self.m.addConstr(self.goal_var*(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')]) == self.p_s_t[(self.start_state, 'f')])
+        self.m.addConstr(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')] >= 0.001)
         
     def encode_actions(self) -> dict:
-        # encode actions
+        # encode actions - only for states that can reach the terminal state
         for s in self.model.nodes:
             # Encode pos and neg states as absorbing, i.e. without available actions. Thus, the can not be included in p_sa
-            if 'positive' in s:
-                assert s not in self.reaching_states
-                self.m.addConstr(self.p[s] == 0)
-                continue
-            if 'negative' in s:
-                self.m.addConstr(self.p[s] == 1)
-                assert self.target_state == s
-                continue
-            enabled_actions = set([self.model.edges[e]['action'] for e in self.model.edges(s)])
-            if 'customer' not in s:
-                assert len(enabled_actions) <= 1, f'More than one action for non-user state {s} : {enabled_actions}' 
-            self.p_sa[s] = {a : self.m.addVar(ub=1.0, name=s+'_'+a, lb = 0) for a in enabled_actions}
+            # print(self.model.edges[list(self.model.out_edges(s))[0]]['action'])
+            enabled_actions = set([self.model.edges[e]['action'] for e in list(self.model.edges(s, keys=True))])
+            print(f'enabled from {s} : {enabled_actions}')
+            assert len(enabled_actions) >= 1, f'State{s} has no enabled action'
+            self.p_sa[s] = {a : self.m.addVar(ub=1.0, name=str(s)+'_'+a, lb = 0, vtype=GRB.INTEGER) for a in enabled_actions}
             self.m.addConstr(sum(list(self.p_sa[s].values())) == 1) # scheduler sums up to one
             for a in enabled_actions:
                 self.m.addConstr(self.p_sa[s][a] <= 1)
-            
+             
     def encode_model(self):
         # encode model
         for s in self.p_sa:
-            enabled_actions = set([self.model.edges[e]['action'] for e in self.model.edges(s)])
+            enabled_actions = set([self.model[e[0]][e[1]][k]['action'] for e in list(self.model.edges(s)) for k in self.model[s][e[1]]])
             assert len(enabled_actions) >= 1, f'State{s} has no enabled action'
             if s in self.reaching_states:
-                self.m.addConstr(self.p[s] == sum([self.p_sa[s][self.model.edges[e]['action']] * float(self.model.edges[e]['prob_weight']) * self.p[e[1]] for e in self.model.edges(s)]))
+                self.m.addConstr(self.p_s_t[s] == sum([self.p_sa[s][self.model.edges[e]['action']] * float(self.model.edges[e]['prob_weight']) * self.p_s_t[e[1]] for e in list(self.model.edges(s, keys=True))]))
+                self.m.addConstr(self.p_s_f[s] == sum([self.p_sa[s][self.model.edges[e]['action']] * float(self.model.edges[e]['prob_weight']) * self.p_s_f[e[1]] for e in list(self.model.edges(s, keys=True))]))
             else:
-                # Not reachable states are still in strategy
-                if self.debug:
-                    print(f'Set {s} to 0')
-                self.m.addConstr(self.p[s] == 0)
-
-    def reachability_constraint(self):
-        # encode reachability constraint
-        self.m.addConstr(self.p[self.start_state] <= self.target_prob)
-    
-    def strict_proximal(self):
-        # strict proximal
-        def add_abs(var, prob, constr):
-            self.m.addConstr(prob - constr <= var)
-            self.m.addConstr(constr - prob <= var)
-            
-        for s in self.model.nodes:
-            if 'positive' in s or 'negative' in s:
-                continue
-            if self.model.edges[list(self.model.edges(s))[0]]['controllable'] or self.model.edges[list(self.model.edges(s))[0]]['action'] == 'env':
-                continue
-            enabled_actions = set([self.model.edges[e]['action'] for e in self.model.edges(s)])
-            if 'customer' not in s:
-                assert len(enabled_actions) == 1, f'More than one action for non-user state {s}' 
-            self.d_sa[s] = {a : self.m.addVar(ub=1.0, lb = 0, name=f'Abs dist state {s} action {a}') for a in enabled_actions}
-            for a in enabled_actions:
-                add_abs(self.d_sa[s][a], self.p_sa[s][a], self.user_strategy[s][a])
-            # encode d_inf constraint
-            self.m.addConstr(0.5 * sum(self.d_sa[s].values()) <= self.d_inf)
-    
-    def encode_sparsity(self):
-        # encode sparsity
-        decision_changed = {}
-        dist_binary = {}
-        for s in self.d_sa:
-            dist_binary[s] = self.m.addVar(ub=1.0, name=f'State {s} was changed', lb = 0, vtype=gp.GRB.BINARY)
-            decision_changed[s] = self.m.addVar(ub=1.0, name=f'Var dist state {s}', lb = 0)
-            self.m.addConstr(decision_changed[s] == 0.5 * sum(self.d_sa[s].values()))
-            self.m.addConstr(decision_changed[s] <= 10 * dist_binary[s])
-        self.m.addConstr(sum(dist_binary.values()) == self.d_0)
-        
+                if self.target_state not in s[0]:
+                    # Not reachable states are still in strategy - exclude other target states
+                    if self.debug:
+                        print(f'Set {s} to 0')
+                    self.m.addConstr(self.p_s_t[s] == 0)
+                    self.m.addConstr(self.p_s_f[s] == 0)
+                
     def get_solution(self):
         if self.m.status == GRB.INFEASIBLE:
-            return Result(self.m.Runtime, -0.2, self.target_prob, {}, self.timeout, 0, self.m.status)
+            return GurobiResult(self.m.Runtime, -0.2, self.start_state, self.via_state, self.target_state, self.timeout, 0, self.m.status)
         
         # compute result as in diverse target function include determinant
         if self.m.status == GRB.TIME_LIMIT:
             if self.m.SolCount == 0:
-                return Result(self.m.Runtime, 0, self.target_prob, {}, self.timeout, self.m.MIPGap, self.m.status)
+                return GurobiResult(self.m.Runtime, 0, self.start_state, self.via_state, self.target_state, self.timeout, self.m.MIPGap, self.m.status)
             else:
-                strategy = QuadraticProblem.construct_strategy_from_solution(self.model, self.p_sa)
-                return Result(self.m.Runtime, self.d_0.X + self.d_1.X + self.d_inf.X, self.target_prob, strategy, self.timeout, self.m.MIPGap, GRB.SUBOPTIMAL)
+                return GurobiResult(self.m.Runtime, self.goal_var.X, self.start_state, self.via_state, self.target_state, self.timeout, self.m.MIPGap, GRB.SUBOPTIMAL)
             
-        strategy = QuadraticProblem.construct_strategy_from_solution(self.model, self.p_sa)
-        return Result(self.m.Runtime, self.d_0.X + self.d_1.X + self.d_inf.X, self.target_prob, strategy, self.timeout, self.m.MIPGap, self.m.status)
-            
-    def solve(self):       
-        self.m.setObjective(self.d_0 + self.d_1 + self.d_inf, sense = GRB.MINIMIZE)
+        return GurobiResult(self.m.Runtime, self.goal_var.X, self.start_state, self.via_state, self.target_state, self.timeout, self.m.MIPGap, self.m.status)
+
+
+    def solve_helper(self, sense=GRB.MAXIMIZE):
+        self.m.setObjective(self.goal_var, sense = sense)
         self.m.optimize()
+        print(self.m.display())
+        
+        assert self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X != 0, f'Denominator is valued at 0'
         
         return_result = self.get_solution()
         if self.m.status == GRB.INFEASIBLE or self.m.status == GRB.TIME_LIMIT:
@@ -158,106 +167,65 @@ class QuadraticProblem:
             return return_result
         
         assert self.m.status == GRB.OPTIMAL, f'Status is {self.m.status}'
-        print("Distances")
-        print("d_inf", self.d_inf.X)
-        print("d_1", self.d_1.X)
-        print("d_0", self.d_0.X)
+        print("Importance")
+        print("goal_var", self.goal_var.X)
         if self.debug:
             for v in self.m.getVars():
                 print(f"{v.VarName} {v.X:g}")
             print(f"Obj: {self.m.ObjVal:g}")
         
-        strategy = QuadraticProblem.construct_strategy_from_solution(self.model, self.p_sa)
-        if self.debug:
-            print('Constructed solution')
-            print(strategy)
+        return return_result
+    
+    def solve_lower_upper(self):
+        return_result_lower = self.solve_helper(sense=GRB.MINIMIZE)
+        return_result_upper = self.solve_helper(sense=GRB.MAXIMIZE)
         
-        strategy_diff(self.user_strategy, strategy)
+        assert return_result_lower.start_state == return_result_upper.start_state
+        assert return_result_lower.via_state == return_result_upper.via_state
+        assert return_result_lower.target_state == return_result_upper.target_state
+        assert return_result_lower.timeout == return_result_upper.timeout
+        assert return_result_lower.status == return_result_upper.status
         
+        result_lower_upper = GurobiResultLowerUpper(return_result_lower.time + return_result_upper.time, return_result_lower.value, return_result_upper.value, return_result_lower.start_state, return_result_lower.via_state, return_result_lower.target_state, return_result_lower.timeout, return_result_lower.gap + return_result_upper.gap, return_result_lower.status)
+        
+        self.m.dispose()
+        return result_lower_upper
+    
+    def solve(self, sense=GRB.MAXIMIZE):
+        return_result = self.solve_helper(sense=sense)
         self.m.dispose()
         return return_result
     
-    def solve_diverse(self, solutions : list):
-        list_of_strategies = [s.strategy for s in solutions]
-        list_of_strategies.insert(0, self.p_sa)
-        names_list_of_strategies = [f's{i}' for i in range(len(list_of_strategies)-1)]
-        names_list_of_strategies.insert(0, "p_sa")
-        
-        # Encode diversity pairwise
-        
-        def det(A):
-            v = self.m.addVar(lb=-float("inf"))
-            if A.shape == (2,2):
-                self.m.addConstr(v == A[0,0]*A[1,1]-A[1,0]*A[0,1])
-                return v
-            # if A.shape == (3,3):
-            #     self.m.addGenConstrNL(v, A[0,0]*A[1,1]*A[2,2] + A[0,1]*A[1,2]*A[2,0] + A[0,2]*A[1,0]*A[2,1] - A[0,2]*A[1,1]*A[2,0] - A[0,1]*A[1,0]*A[2,2] - A[0,0]*A[1,2]*A[2,1])
-            #     return v
-            expr = gp.QuadExpr()
-            cofactor = 1
-            for i in range(A.shape[1]):
-                cols = [c for c in range(A.shape[1]) if c != i]
-                expr += cofactor*A[0,i]*det(A[1:][:,cols])
-                cofactor = -cofactor
-            self.m.addConstr(v == expr)
-            return v
-        
-        d_sa_strat = {}
-        d_sa_strat_abs = {}
-        d_1_visits = self.m.addMVar((len(list_of_strategies),len(list_of_strategies)), lb=-float("inf"))
-        for i in range(len(list_of_strategies)):
-            s1 = list_of_strategies[i]
-            n1 = names_list_of_strategies[i]
-            for j in range(len(list_of_strategies)):
-                s2 = list_of_strategies[j]
-                n2 = names_list_of_strategies[j]
-                d_sa_strat[(n1,n2)] = {}
-                d_sa_strat_abs[(n1,n2)] = {}
-                for s in self.model.nodes:
-                    if 'positive' in s or 'negative' in s:
-                        continue
-                    if self.model.edges[list(self.model.edges(s))[0]]['controllable'] or self.model.edges[list(self.model.edges(s))[0]]['action'] == 'env':
-                        continue
-                    enabled_actions = set([self.model.edges[e]['action'] for e in self.model.edges(s)])
-                    if 'customer' not in s:
-                        assert len(enabled_actions) == 1, f'More than one action for non-user state {s}' 
-                    d_sa_strat[(n1,n2)][s] = {a : self.m.addVar(ub=1.0, lb = -1.0, name=f'Diversity-Dist state {s} action {a} ({n1}, {n2})') for a in enabled_actions}
-                    d_sa_strat_abs[(n1,n2)][s] = {a : self.m.addVar(ub=1.0, name=f'Abs diversity-dist state {s} action {a} ({n1}, {n2})', lb = 0) for a in enabled_actions}
-                    for a in enabled_actions:
-                        self.m.addConstr(d_sa_strat[(n1,n2)][s][a] == s1[s][a] - s2[s][a])
-                        self.m.addConstr(d_sa_strat_abs[(n1,n2)][s][a] == gp.abs_(d_sa_strat[(n1,n2)][s][a]))
-                self.m.addConstr(d_1_visits[i,j] * (1 + sum([0.5 * sum(d_sa_strat_abs[(n1,n2)][s].values()) for s in d_sa_strat_abs[(n1,n2)]])) - (random.uniform(0, 0.00001) if i == j else 0) == 1 ) ## added perturbation here, commented out later
+if __name__ == '__main__':
+    print("Test")
+    
+    # G = nx.MultiDiGraph()
+    # G.add_edges_from([('0','1'),('1', '3',), ('0', '2'), ('2', '3')])
+    # print(G)
+    # print(unroll(G, '1', '0').nodes)
+    
+    
+    mdp = nx.MultiDiGraph()
+    mdp.add_edge('s0', 'st', action = 'a', prob_weight = 1)
+    mdp.add_edge('s0', 'st', action = 'b', prob_weight = 0.1)
+    mdp.add_edge('s0', 's1', action = 'b', prob_weight = 0.8)
+    mdp.add_edge('s0', 'sink', action = 'b', prob_weight = 0.1)
+    mdp.add_edge('s1', 'st', action = 'a', prob_weight = 1)
+    mdp.add_edge('s1', 'st', action = 'b', prob_weight = 0.1)
+    mdp.add_edge('s1', 's2', action = 'b', prob_weight = 0.8)
+    mdp.add_edge('s1', 'sink', action = 'b', prob_weight = 0.1)
+    mdp.add_edge('s2', 'st', action = 'b', prob_weight = 0.1)
+    mdp.add_edge('s2', 'sink', action = 'b', prob_weight = 0.9)
+    print('prior', [(e, mdp.edges[e]) for e in mdp.edges])
+    
+    unrolled = unroll(add_self_loops(mdp), 's1', 's0')
+    print(unrolled.nodes)
+    for e in unrolled.edges:
+        print(e, unrolled.edges[e])
+    
+    qp = QuadraticProblem(mdp, 's0', 's2', 'st', debug=True)
+    print(qp.solve_lower_upper().df())
 
-        # add small perturbation
-        # for i in range(len(list_of_strategies)):
-            # d_1_visits[i,i] += random.uniform(0, 0.00001) # CHANGED FROM ==  - Just did nothing...
-        
-        
-        self.m.setObjective(self.d_0 + self.d_1 + self.d_inf - len(solutions) * det(d_1_visits), sense = GRB.MINIMIZE)
-        self.m.optimize()
-        
-        # process solution
-        return_result = self.get_solution()
-        if self.m.status == GRB.INFEASIBLE or self.m.status == GRB.TIME_LIMIT:
-            self.m.dispose()
-            return return_result
-        
-        assert self.m.status == GRB.OPTIMAL, f'Status is {self.m.status}'
-        print("Distances function")
-        print("d_inf", self.d_inf.X)
-        print("d_1", self.d_1.X)
-        print("d_0", self.d_0.X)
-        if self.debug:
-            for v in self.m.getVars():
-                print(f"{v.VarName} {v.X:g}")
-            print(f"Obj: {self.m.ObjVal:g}")
-        
-        strategy = QuadraticProblem.construct_strategy_from_solution(self.model, self.p_sa)
-        if self.debug:
-            print('Constructed solution')
-            print(strategy)
-        
-        strategy_diff(self.user_strategy, strategy)
-        
-        self.m.dispose()
-        return return_result
+    
+# TODO: Can actions being binary be further exploited?
+# TODO: Do I need all 4 cases in problem?

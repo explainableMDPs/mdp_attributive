@@ -15,8 +15,9 @@ seed = 42
 random.seed(seed)
 
 
-from Result import PrismResult
+from Result import PrismResult, GurobiResult
 from PrismParser import PrismParser, StormParser
+from solver import QuadraticProblem
 
 import pyrootutils
 path = pyrootutils.find_root(search_from=__file__, indicator=".project-root")
@@ -221,11 +222,22 @@ def follow_path(model, path, name=""):
     
     return parser.call(f'Pmax=? [(F "positive") & ({construct_path(path[1:])})]', name)
 
+def importance_state(model, via_state) -> GurobiResult:
+    target_state = [s for s in model if 'positive' in s]
+    assert len(target_state) == 1
+    qp = QuadraticProblem(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True)
+    return qp.solve_lower_upper().df()
+
 def manual_execution():
     assert args
     # manual tests
-    with open('out/models/model_greps_model-it_0.pickle', 'rb') as handle: #open(f'out/models/model_{name}.pickle', 'rb') as handle:
+    with open('out/models/model_bpic17-before_model-it_0.pickle', 'rb') as handle: #open(f'out/models/model_{name}.pickle', 'rb') as handle:
         model = pickle.load(handle)
+    target_state = [s for s in model if 'positive' in s]
+    assert len(target_state) == 1
+    qp = QuadraticProblem(model, 'q0: start', 'q0: start', target_state[0], debug=True)
+    qp.solve()
+    
     with open('out/paths/model_greps_model-it_0_random_paths.txt', 'rb') as f:
         paths = [ast.literal_eval(line.decode("utf-8")) for line in f] # also removes newline character from path
     
@@ -251,7 +263,7 @@ if __name__ == '__main__':
                     prog = 'benchmarks',
                     description = "File to trigger benchmarks for CE generation in MDP's")
     parser.add_argument('-t', '--timeout', help = "Timeout for PRISM (in sec.)", type=int, default = 60)
-    parser.add_argument('-sa', '--samples', help = "Number of states to sample", type=int, default = 100)
+    parser.add_argument('-sa', '--samples', help = "Number of states to sample", type=int, default = 10)
     parser.add_argument('-i', '--iterations', help = "Iterations for each model", type=int, default = 1)
     parser.add_argument('-pl', '--path_length', help = "Path length range", type=int, nargs='+', default = [1,10,1])
     parser.add_argument('-c', '--cores', help = "Cores to use to parallelize experiments", type=int, default = 1)
@@ -282,10 +294,11 @@ if __name__ == '__main__':
         filename = "out/models/test.txt"
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         generate_models(args.experiments, args.cores, args.model_iterations)
-    if args.rebuild_models or args.rebuild_paths:
-        filename = "out/paths/test.txt"
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
-        generate_paths(args.experiments, args.model_iterations, args.iterations, tuple(args.path_length))
+        
+    # if args.rebuild_models or args.rebuild_paths:
+    #     filename = "out/paths/test.txt"
+    #     os.makedirs(os.path.dirname(filename), exist_ok=True)
+    #     generate_paths(args.experiments, args.model_iterations, args.iterations, tuple(args.path_length))
     
     # trigger single, manual execution
     # manual_execution()
@@ -294,15 +307,18 @@ if __name__ == '__main__':
     for name in args.experiments:
         for i in range(args.model_iterations):
             assert list(Path(f'out/models/').glob(f'*{name}_model-it_{i}.pickle'))
-            benchmark_models.extend(list(Path(f'out/models/').glob(f'*{name}_model-it_{i}.prism')))
+            benchmark_models.extend(list(Path(f'out/models/').glob(f'*{name}_model-it_{i}.pickle')))
     print('Benchmarks: ', [str(b) for b in benchmark_models])
     
     experiments = []
     for e in benchmark_models:
-        with open(str(e).replace(".prism", ".pickle"), 'rb') as handle: # need pickle files for nodes
+        print(e)
+        with open(e, 'rb') as handle: # need pickle files for nodes
             model = pickle.load(handle)
-        experiments.extend([(reach_state, e, f'loc={s}') for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
-        experiments.extend([(avoid_positive_until_state, e, s) for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
+        experiments.extend([(importance_state, model, s) for s in random.sample(list(model.nodes()), k = args.samples)])
+        continue
+        # experiments.extend([(reach_state, e, f'loc={s}') for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
+        # experiments.extend([(avoid_positive_until_state, e, s) for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
         # experiments.extend([(reach_state, e, f'loc={s}') for s in range(len(model.nodes()))])
         # experiments.extend([(avoid_positive_until_state, e, s) for s in range(len(model.nodes()))])
         
@@ -339,3 +355,7 @@ if __name__ == '__main__':
 # TODO: current path construction breaks for spotify - not sure that paths are in sub-set contained
 # TODO: all (actual) paths != 0 probability
 # TODO: test prism settings - e.g. maxiters etc.
+
+
+# TODO check learning for MultiDiGraph problem - they return just DiGraph
+# TODO upper and lower bounded implementieren
