@@ -53,7 +53,7 @@ class QuadraticProblem:
         self.env = gp.Env()
         self.m = gp.Model("qp", env=self.env)
         self.m.setParam('TimeLimit', timeout)
-        self.m.setParam('SoftMemLimit', 4)
+        self.m.setParam('SoftMemLimit', 12)
         self.m.setParam('Threads', threads)
         
         self.model = unroll(add_self_loops(model), via_state, start_state)
@@ -109,7 +109,7 @@ class QuadraticProblem:
         
         self.goal_var = self.m.addVar(ub=1.0, name='goal variable', lb = 0)
         self.m.addConstr(self.goal_var*(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')]) == self.p_s_t[(self.start_state, 'f')])
-        self.m.addConstr(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')] >= 0.001)
+        # self.m.addConstr(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')] >= 0.001)
         
     def encode_actions(self) -> dict:
         # encode actions - only for states that can reach the terminal state
@@ -119,7 +119,7 @@ class QuadraticProblem:
             enabled_actions = set([self.model.edges[e]['action'] for e in list(self.model.edges(s, keys=True))])
             print(f'enabled from {s} : {enabled_actions}')
             assert len(enabled_actions) >= 1, f'State{s} has no enabled action'
-            self.p_sa[s] = {a : self.m.addVar(ub=1.0, name=str(s)+'_'+a, lb = 0, vtype=GRB.INTEGER) for a in enabled_actions}
+            self.p_sa[s] = {a : self.m.addVar(ub=1.0, name=str(s)+'_'+a, lb = 0, vtype=GRB.BINARY) for a in enabled_actions}
             self.m.addConstr(sum(list(self.p_sa[s].values())) == 1) # scheduler sums up to one
             for a in enabled_actions:
                 self.m.addConstr(self.p_sa[s][a] <= 1)
@@ -140,24 +140,58 @@ class QuadraticProblem:
                     self.m.addConstr(self.p_s_t[s] == 0)
                     self.m.addConstr(self.p_s_f[s] == 0)
                 
+    def get_max_solution(self):
+        if self.debug:
+            print(f"Found {self.m.SolCount} solutions:")
+        solutions = []
+        for s in range(self.m.SolCount):
+            # Set which solution we will query from now on
+            self.m.params.SolutionNumber = s
+            if self.debug:
+                print('Solution', s, ':', end='')
+            solution = []
+            for o in range(self.m.NumObj):
+                # Set which objective we will query
+                self.m.params.ObjNumber = o
+                # Query the o-th objective value
+                if self.debug:
+                    print(' ', self.m.ObjNVal, end='')
+                solution.append(abs(self.m.ObjNVal)) # append abs to consider positive values
+            # Print first three variables in the solution
+            solutions.append(tuple(solution))
+            if self.debug:
+                print('')
+        return max(solutions)
+        
     def get_solution(self):
         if self.m.status == GRB.INFEASIBLE:
-            return GurobiResult(self.m.Runtime, -0.2, self.start_state, self.via_state, self.target_state, self.timeout, 0, self.m.status)
+            return GurobiResult(self.m.Runtime, -0.2, -0.2, self.start_state, self.via_state, self.target_state, self.timeout, 0, self.m.status)
         
         # compute result as in diverse target function include determinant
         if self.m.status == GRB.TIME_LIMIT:
             if self.m.SolCount == 0:
-                return GurobiResult(self.m.Runtime, 0, self.start_state, self.via_state, self.target_state, self.timeout, self.m.MIPGap, self.m.status)
+                return GurobiResult(self.m.Runtime, 0, 0, self.start_state, self.via_state, self.target_state, self.timeout, self.m.status)
             else:
-                return GurobiResult(self.m.Runtime, self.goal_var.X, self.start_state, self.via_state, self.target_state, self.timeout, self.m.MIPGap, GRB.SUBOPTIMAL)
-            
-        return GurobiResult(self.m.Runtime, self.goal_var.X, self.start_state, self.via_state, self.target_state, self.timeout, self.m.MIPGap, self.m.status)
+                max_result = self.get_max_solution()
+                return GurobiResult(self.m.Runtime, max_result[0], max_result[1], self.start_state, self.via_state, self.target_state, self.timeout, self.m.status)
+        max_result = self.get_max_solution() 
+        return GurobiResult(self.m.Runtime, max_result[0], max_result[1], self.start_state, self.via_state, self.target_state, self.timeout, self.m.status)
 
 
     def solve_helper(self, sense=GRB.MAXIMIZE):
-        self.m.setObjective(self.goal_var, sense = sense)
+        if sense == GRB.MAXIMIZE:
+            self.m.setObjectiveN(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')], index = 0, priority = 1)
+        else:
+            self.m.setObjectiveN(-(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')]), index = 0, priority = 1)
+            
+        self.m.setObjectiveN(self.goal_var, index = 1, priority=0)
+        self.m.ModelSense = sense
+        # self.m.setObjective(self.goal_var, sense = sense)
+        
+        self.m.update()
+        
         self.m.optimize()
-        print(self.m.display())
+        # print(self.m.display())
         
         assert self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X != 0, f'Denominator is valued at 0'
         
@@ -185,8 +219,13 @@ class QuadraticProblem:
         assert return_result_lower.target_state == return_result_upper.target_state
         assert return_result_lower.timeout == return_result_upper.timeout
         assert return_result_lower.status == return_result_upper.status
+        assert abs(return_result_lower.reachability_value - return_result_upper.reachability_value) <= 1e-4, f'{abs(return_result_lower.reachability_value - return_result_upper.reachability_value)}'
+        assert return_result_lower.importance_value <= return_result_upper.importance_value
         
-        result_lower_upper = GurobiResultLowerUpper(return_result_lower.time + return_result_upper.time, return_result_lower.value, return_result_upper.value, return_result_lower.start_state, return_result_lower.via_state, return_result_lower.target_state, return_result_lower.timeout, return_result_lower.gap + return_result_upper.gap, return_result_lower.status)
+        result_lower_upper = GurobiResultLowerUpper(return_result_lower.time + return_result_upper.time, return_result_lower.reachability_value, return_result_lower.importance_value, 
+                                                    return_result_upper.reachability_value, return_result_upper.importance_value, 
+                                                    return_result_lower.start_state, return_result_lower.via_state, return_result_lower.target_state, 
+                                                    return_result_lower.timeout, return_result_lower.status)
         
         self.m.dispose()
         return result_lower_upper
@@ -229,3 +268,4 @@ if __name__ == '__main__':
     
 # TODO: Can actions being binary be further exploited?
 # TODO: Do I need all 4 cases in problem?
+# TODO assert that first objective is optimal for reachability

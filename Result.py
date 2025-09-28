@@ -1,37 +1,41 @@
 import pandas as pd
 
 class GurobiResult:
-    def __init__(self, time, value, start_state, via_state, target_state, timeout, gap, status = -1):
+    def __init__(self, time, reachability_value, importance_value, start_state, via_state, target_state, timeout, status = -1):
         self.time = time
-        self.value = value
+        self.reachability_value = reachability_value
+        self.importance_value = importance_value
         self.start_state = start_state
         self.via_state = via_state
         self.target_state = target_state
         self.timeout = timeout
-        self.gap = gap
         self.status = status # https://docs.gurobi.com/projects/optimizer/en/current/reference/numericcodes/statuscodes.html
         
     def df(self):
-        d = {'time' : self.time, 'value' : self.value, 'start_state' : self.start_state, 'via_state' : self.via_state, 'target_state' : self.target_state, 
-             'timeout' : self.timeout, 'gap' : self.gap, 'status' : self.status}
+        d = {'time' : self.time, 'reachability_value' : self.reachability_value, 'importance_value' : self.importance_value, 'start_state' : self.start_state, 'via_state' : self.via_state, 'target_state' : self.target_state, 
+             'timeout' : self.timeout, 'status' : self.status}
         return pd.DataFrame([d])
     
 class GurobiResultLowerUpper:
-    def __init__(self, time, value_lower, value_upper, start_state, via_state, target_state, timeout, gap, status = -1):
+    def __init__(self, time, lower_reachability_value, lower_importance_value, upper_reachability_value, upper_importance_value, start_state, via_state, target_state, timeout, status = -1):
         self.time = time
-        self.value_lower = value_lower
-        self.value_upper = value_upper
+        self.lower_reachability_value = lower_reachability_value
+        self.lower_importance_value = lower_importance_value
+        self.upper_reachability_value = upper_reachability_value
+        self.upper_importance_value = upper_importance_value
         self.start_state = start_state
         self.via_state = via_state
         self.target_state = target_state
         self.timeout = timeout
-        self.gap = gap
         self.status = status # https://docs.gurobi.com/projects/optimizer/en/current/reference/numericcodes/statuscodes.html
         
     def df(self):
-        d = {'time' : self.time, 'value_lower' : self.value_lower, 'value_upper' : self.value_upper, 
+        d = {'time' : self.time, 'lower_reachability_value' : self.lower_reachability_value,
+             'lower_importance_value' : self.lower_importance_value,
+             'upper_reachability_value' : self.upper_reachability_value,
+             'upper_importance_value' : self.upper_importance_value,
              'start_state' : self.start_state, 'via_state' : self.via_state, 'target_state' : self.target_state, 
-             'timeout' : self.timeout, 'gap' : self.gap, 'status' : self.status}
+             'timeout' : self.timeout, 'status' : self.status}
         return pd.DataFrame([d])
     
 class PrismResult():

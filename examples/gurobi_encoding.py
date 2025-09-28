@@ -46,17 +46,40 @@ m.addConstr(placesT[0] == p0_b * (0.1 * placesT[-2] + 0.8 * placesT[1] + 0.1 * p
 t = m.addVar(name='target_fraction', lb = 0, ub=1)
 
 m.addConstr(t * (placesT[0] + placesB[0]) == placesT[0])
+m.addConstr(placesT[0] + placesB[0] >= 0.001)
 
 # Set objective
 obj = t
-m.setObjective(obj, sense = GRB.MAXIMIZE)
+#see https://docs.gurobi.com/projects/optimizer/en/current/reference/python/model.html#Model.setObjectiveN
+m.setObjectiveN(placesT[0] + placesB[0], index = 0, priority = 1)
+m.setObjectiveN(obj, index = 1, priority=0)
+m.ModelSense = GRB.MAXIMIZE
 
 m.optimize()
 
 for v in m.getVars():
     print(f"{v.VarName} {v.X:g}")
 
-print(f"Obj: {m.ObjVal:g}")
+print(f"Reach: {placesT[0].X + placesB[0].X}")
+print(f"Importance: {t.X:g}")
+
+nSolutions  = m.SolCount
+nObjectives = m.NumObj
+print('Problem has', nObjectives, 'objectives')
+print('Gurobi found', nSolutions, 'solutions')
+solutions = []
+for s in range(nSolutions):
+    # Set which solution we will query from now on
+    m.params.SolutionNumber = s
+    print('Solution', s, ':', end='')
+    for o in range(nObjectives):
+        # Set which objective we will query
+        m.params.ObjNumber = o
+        # Query the o-th objective value
+        print(' ', m.ObjNVal, end='')
+      # Print first three variables in the solution
+    print('')
+
 
 #x.VType = GRB.INTEGER
 #y.VType = GRB.INTEGER
