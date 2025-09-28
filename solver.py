@@ -53,7 +53,7 @@ class QuadraticProblem:
         self.env = gp.Env()
         self.m = gp.Model("qp", env=self.env)
         self.m.setParam('TimeLimit', timeout)
-        self.m.setParam('SoftMemLimit', 12)
+        self.m.setParam('SoftMemLimit', 20)
         self.m.setParam('Threads', threads)
         
         self.model = unroll(add_self_loops(model), via_state, start_state)
