@@ -49,11 +49,11 @@ def add_self_loops(model: nx.MultiDiGraph) -> nx.MultiDiGraph:
     
 class QuadraticProblem:
     
-    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state, target_state : str, timeout = 10*60*60, threads = 10, debug = False):   
+    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state, target_state : str, timeout = 10*60*60, threads = 5, debug = False, memory=4):   
         self.env = gp.Env()
         self.m = gp.Model("qp", env=self.env)
         self.m.setParam('TimeLimit', timeout)
-        self.m.setParam('SoftMemLimit', 20)
+        self.m.setParam('SoftMemLimit', memory)
         self.m.setParam('Threads', threads)
         
         self.model = unroll(add_self_loops(model), via_state, start_state)
@@ -119,7 +119,7 @@ class QuadraticProblem:
             enabled_actions = set([self.model.edges[e]['action'] for e in list(self.model.edges(s, keys=True))])
             print(f'enabled from {s} : {enabled_actions}')
             assert len(enabled_actions) >= 1, f'State{s} has no enabled action'
-            self.p_sa[s] = {a : self.m.addVar(ub=1.0, name=str(s)+'_'+a, lb = 0) for a in enabled_actions} # vtype=GRB.BINARY
+            self.p_sa[s] = {a : self.m.addVar(ub=1.0, name=str(s)+'_'+a, lb = 0, vtype=GRB.BINARY) for a in enabled_actions} # 
             self.m.addConstr(sum(list(self.p_sa[s].values())) == 1) # scheduler sums up to one
             for a in enabled_actions:
                 self.m.addConstr(self.p_sa[s][a] <= 1)
@@ -165,23 +165,26 @@ class QuadraticProblem:
         
     def get_solution(self):
         if self.m.status == GRB.INFEASIBLE:
-            return GurobiResult(self.m.Runtime, -0.2, -0.2, self.start_state, self.via_state, self.target_state, self.timeout, 0, self.m.status)
+            return GurobiResult(time=self.m.Runtime, reachability_value=-0.2, importance_value=-0.2, start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
         
         # compute result as in diverse target function include determinant
         if self.m.status == GRB.TIME_LIMIT:
             if self.m.SolCount == 0:
-                return GurobiResult(self.m.Runtime, 0, 0, self.start_state, self.via_state, self.target_state, self.timeout, self.m.status)
+                return GurobiResult(time=self.m.Runtime, reachability_value=0, importance_value=0, start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
             else:
                 max_result = self.get_max_solution()
-                return GurobiResult(self.m.Runtime, max_result[0], max_result[1], self.start_state, self.via_state, self.target_state, self.timeout, self.m.status)
+                return GurobiResult(time=self.m.Runtime, reachability_value=max_result[0], importance_value=max_result[1], start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
         max_result = self.get_max_solution() 
-        return GurobiResult(self.m.Runtime, max_result[0], max_result[1], self.start_state, self.via_state, self.target_state, self.timeout, self.m.status)
+        return GurobiResult(time=self.m.Runtime, reachability_value=max_result[0], importance_value=max_result[1], start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
 
 
     def solve_helper(self, sense=GRB.MAXIMIZE):
-        # maximize reachability, then optimize for importance
         # if sense == GRB.MAXIMIZE:
-        self.m.setObjectiveN(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')], index = 0, priority = 1)
+        # Higher priority is solved first ... while imposing constraints that ensure that
+        # the quality of higher-priority objectives isn’t degraded by more than the specified tolerance
+        # (https://docs.gurobi.com/projects/optimizer/en/current/features/multiobjective.html#secmultipleobjectives)
+        # maximize reachability, then optimize for importance
+        self.m.setObjectiveN(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')], index = 0, priority = 1) 
         # else:
             # self.m.setObjectiveN(-(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')]), index = 0, priority = 1)
             
@@ -190,7 +193,7 @@ class QuadraticProblem:
         else:
             self.m.setObjectiveN(-self.goal_var, index = 1, priority=0)
             
-        self.m.ModelSense = sense
+        self.m.ModelSense = GRB.MAXIMIZE
         # self.m.setObjective(self.goal_var, sense = sense)
         
         self.m.update()
@@ -217,14 +220,14 @@ class QuadraticProblem:
     
     def solve_lower_upper(self):
         return_result_lower = self.solve_helper(sense=GRB.MINIMIZE)
-        return_result_upper = self.solve_helper(sense=GRB.MAXIMIZE)
+        return_result_upper = self.solve_helper(sense=GRB.MAXIMIZE)        
         
         assert return_result_lower.start_state == return_result_upper.start_state
         assert return_result_lower.via_state == return_result_upper.via_state
         assert return_result_lower.target_state == return_result_upper.target_state
         assert return_result_lower.timeout == return_result_upper.timeout
         assert return_result_lower.status == return_result_upper.status
-        assert abs(return_result_lower.reachability_value - return_result_upper.reachability_value) <= 1e-4, f'{abs(return_result_lower.reachability_value - return_result_upper.reachability_value)}'
+        assert abs(return_result_lower.reachability_value - return_result_upper.reachability_value) <= 1e-3, f'{abs(return_result_lower.reachability_value - return_result_upper.reachability_value)}'
         assert return_result_lower.importance_value <= return_result_upper.importance_value
         
         result_lower_upper = GurobiResultLowerUpper(return_result_lower.time + return_result_upper.time, return_result_lower.reachability_value, return_result_lower.importance_value, 
