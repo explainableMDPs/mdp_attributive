@@ -49,7 +49,7 @@ def add_self_loops(model: nx.MultiDiGraph) -> nx.MultiDiGraph:
     
 class QuadraticProblem:
     
-    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state, target_state : str, timeout = 10*60*60, threads = 1, debug = False):   
+    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state, target_state : str, timeout = 10*60*60, threads = 10, debug = False):   
         self.env = gp.Env()
         self.m = gp.Model("qp", env=self.env)
         self.m.setParam('TimeLimit', timeout)
@@ -68,10 +68,10 @@ class QuadraticProblem:
         assert via_state in model 
                 
         print('Nodes', self.model.nodes)
+        print()
         
-        self.p_s_t = {s : self.m.addVar(ub=1.0, name='p_t'+str(s), lb = 0) for s in self.model.nodes}
-        self.p_s_f = {s : self.m.addVar(ub=1.0, name='p_f'+str(s), lb = 0) for s in self.model.nodes}
-        print(self.p_s_f)
+        self.p_s_t = {s : self.m.addVar(ub=1.0, name=f'p_{str(s)}->t', lb = 0) for s in self.model.nodes}
+        self.p_s_f = {s : self.m.addVar(ub=1.0, name=f'p_{str(s)}->f', lb = 0) for s in self.model.nodes}
         self.p_sa = {}
 
         # start_state = [s for s in self.model.nodes if 'q0: start' in s]
@@ -119,7 +119,7 @@ class QuadraticProblem:
             enabled_actions = set([self.model.edges[e]['action'] for e in list(self.model.edges(s, keys=True))])
             print(f'enabled from {s} : {enabled_actions}')
             assert len(enabled_actions) >= 1, f'State{s} has no enabled action'
-            self.p_sa[s] = {a : self.m.addVar(ub=1.0, name=str(s)+'_'+a, lb = 0, vtype=GRB.BINARY) for a in enabled_actions}
+            self.p_sa[s] = {a : self.m.addVar(ub=1.0, name=str(s)+'_'+a, lb = 0) for a in enabled_actions} # vtype=GRB.BINARY
             self.m.addConstr(sum(list(self.p_sa[s].values())) == 1) # scheduler sums up to one
             for a in enabled_actions:
                 self.m.addConstr(self.p_sa[s][a] <= 1)
@@ -179,12 +179,17 @@ class QuadraticProblem:
 
 
     def solve_helper(self, sense=GRB.MAXIMIZE):
-        if sense == GRB.MAXIMIZE:
-            self.m.setObjectiveN(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')], index = 0, priority = 1)
-        else:
-            self.m.setObjectiveN(-(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')]), index = 0, priority = 1)
+        # maximize reachability, then optimize for importance
+        # if sense == GRB.MAXIMIZE:
+        self.m.setObjectiveN(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')], index = 0, priority = 1)
+        # else:
+            # self.m.setObjectiveN(-(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')]), index = 0, priority = 1)
             
-        self.m.setObjectiveN(self.goal_var, index = 1, priority=0)
+        if sense == GRB.MAXIMIZE:
+            self.m.setObjectiveN(self.goal_var, index = 1, priority=0)
+        else:
+            self.m.setObjectiveN(-self.goal_var, index = 1, priority=0)
+            
         self.m.ModelSense = sense
         # self.m.setObjective(self.goal_var, sense = sense)
         
@@ -269,3 +274,4 @@ if __name__ == '__main__':
 # TODO: Can actions being binary be further exploited?
 # TODO: Do I need all 4 cases in problem?
 # TODO assert that first objective is optimal for reachability
+# TODO rewrite into one set of variables p_s
