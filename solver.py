@@ -49,7 +49,7 @@ def add_self_loops(model: nx.MultiDiGraph) -> nx.MultiDiGraph:
     
 class QuadraticProblem:
     
-    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state, target_state : str, timeout = 10*60*60, threads = 5, debug = False, memory=4):   
+    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state, target_state : str, timeout = 10*60*60, threads = 5, debug = False, memory=20):   
         self.env = gp.Env()
         self.m = gp.Model("qp", env=self.env)
         self.m.setParam('TimeLimit', timeout)
