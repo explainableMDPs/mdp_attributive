@@ -183,12 +183,9 @@ class QuadraticProblem:
         assert start_state in model        
         assert target_state in model
         assert via_state in model 
-                
-        print('Nodes', self.model.nodes)
-        print()
         
-        self.p_s_t = {s : self.m.addVar(ub=1.0, name=f'p_{str(s)}->t', lb = 0) for s in self.model.nodes}
-        self.p_s_f = {s : self.m.addVar(ub=1.0, name=f'p_{str(s)}->f', lb = 0) for s in self.model.nodes}
+        self.p_s_t = {s : self.m.addVar(ub=1.0, name=f'p_{str(s)}->t', lb = 0.0) for s in self.model.nodes}
+        self.p_s_f = {s : self.m.addVar(ub=1.0, name=f'p_{str(s)}->f', lb = 0.0) for s in self.model.nodes}
         self.p_sa = {}
 
         # start_state = [s for s in self.model.nodes if 'q0: start' in s]
@@ -199,15 +196,19 @@ class QuadraticProblem:
         # assert len(target_state) == 1, target_state
         # self.target_state = target_state[0]
         if (self.target_state, 'f') not in self.model.nodes:
+            print('###### No negative contained ######')
             self.reaching_states = [s for s in self.model.nodes if s[0] != self.target_state and nx.has_path(self.model, s, (self.target_state, 't'))]
-            self.m.addConstr(self.p_s_t[(self.target_state, 't')] == 1)
+            self.m.addConstr(self.p_s_f[(self.start_state, 'f')] == 0) # no (target, 'f') state contained, thus, initial state can be set to 0 -> if no target state, the propagation can get lost
             self.m.addConstr(self.p_s_f[(self.target_state, 't')] == 0)
+            self.m.addConstr(self.p_s_t[(self.target_state, 't')] == 1)
         elif (self.target_state, 't') not in self.model.nodes:
+            print('###### No positive contained ######')
             self.reaching_states = [s for s in self.model.nodes if s[0] != self.target_state and nx.has_path(self.model, s, (self.target_state, 'f'))]
-            print("no pos", self.via_state)
+            self.m.addConstr(self.p_s_t[(self.start_state, 'f')] == 0) # no (target, 't') state contained, thus, initial state can be set to 0 -> if no target state, the propagation can get lost
             self.m.addConstr(self.p_s_t[(self.target_state, 'f')] == 0)
             self.m.addConstr(self.p_s_f[(self.target_state, 'f')] == 1)
         else:
+            print('###### Both contained ######')
             self.reaching_states = [s for s in self.model.nodes if s[0] != self.target_state and (
                                     ((not (self.target_state, 'f')) or (nx.has_path(self.model, s, (self.target_state, 'f'))))
                                     or nx.has_path(self.model, s, (self.target_state, 't')))]
