@@ -16,6 +16,14 @@ def unroll(model : nx.MultiDiGraph, via_state : str, start_state = None) -> nx.M
     Returns:
         nx.MultiDiGraph: Unrolled MDP
     """
+    if start_state:
+        if via_state == start_state:
+            unrolled_model = nx.MultiDiGraph(model)
+            unrolled_model = nx.relabel_nodes(unrolled_model, {s : (s, 't') for s in model.nodes})
+            # IMPORTANT: Rename here, later every computation is fixed as starting from '(start_state, f)'
+            unrolled_model = nx.relabel_nodes(unrolled_model, {(start_state, 't') : (start_state, 'f') })
+            return unrolled_model
+        
     unrolled_model = nx.MultiDiGraph()
     unrolled_model.add_nodes_from([(n, 'f') for n in model.nodes])
     unrolled_model.add_nodes_from([(n, 't') for n in model.nodes])
