@@ -58,9 +58,109 @@ def add_self_loops(model: nx.MultiDiGraph) -> nx.MultiDiGraph:
             model.add_edge(s, s, action = 'self_loop', prob_weight=1)
     return model
     
-class QuadraticProblem:
+def ensure_optimal_reachability():
+    #TODO - Implement to run with experiments that reachability solving is correct
+    pass
     
-    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state, target_state : str, timeout = 10*60*60, threads = 5, debug = False, memory=20):   
+    
+class FixedReachabilitiesReturns:
+    def __init__(self, fixed_reachabilities : dict, reachability : float, runtime : float):
+        self.fixed_reachabilities = fixed_reachabilities
+        self.reachability = reachability
+        self.runtime = runtime
+        
+        
+def get_fixed_reachabilities(model : nx.MultiDiGraph, start_state : str, via_state : str, target_state : str, timeout = 10*60*60, threads = 1, debug = False, memory=4, precision = 1e-2) -> FixedReachabilitiesReturns:
+    env = gp.Env()
+    m = gp.Model("lp", env=env)
+    m.setParam('TimeLimit', timeout)
+    m.setParam('SoftMemLimit', memory)
+    m.setParam('Threads', threads)
+    
+    model = unroll(add_self_loops(model), via_state, start_state)
+    
+    p_s = {s : m.addVar(ub=1.0, name=f'p_{str(s)}', lb = 0.0) for s in model.nodes}
+    
+    target_states_unrolled = []
+    if (target_state, 'f') in model:
+        target_states_unrolled.append((target_state, 'f'))
+        m.addConstr(p_s[(target_state, 'f')] == 1)
+    if (target_state, 't') in model:
+        target_states_unrolled.append((target_state, 't'))
+        m.addConstr(p_s[(target_state, 't')] == 1)
+    
+    states_reaching = [s for s in model.nodes() if any([nx.has_path(model, s, t) for t in target_states_unrolled])]
+    for s in model.nodes:
+        print(s)
+        if s not in states_reaching:
+            m.addConstr(p_s[s] == 0)
+        else:
+            enabled_actions = set([model.edges[e]['action'] for e in list(model.edges(s, keys=True))])
+            for action in enabled_actions:
+                print('-- action', action)
+                m.addConstr(p_s[s] >= sum([float(model.edges[e]['prob_weight']) * p_s[e[1]] for e in list(model.edges(s, keys=True)) if model.edges[e]['action'] == action]))
+    
+    m.setObjective(sum([p_s[s] for s in states_reaching]))
+    
+    m.ModelSense = GRB.MINIMIZE
+    # self.m.setObjective(self.goal_var, sense = sense)
+        
+    # TODO ensure that model is linear
+    m.update()
+    m.optimize()    
+    assert m.status == GRB.OPTIMAL, f'Status is {m.status} instead op OPTIMAL'
+    print("Reachability", p_s[(start_state, 'f')].X)
+    
+    if debug:
+        for v in m.getVars():
+            print(f"{v.VarName} {v.X:g}")
+        print(f"Obj: {m.ObjVal:g}")
+        
+    # compare optimal decisions
+    fixed_reachabilities = {}
+        
+    for s in model.nodes():
+        out_edges = list(model.edges(s, keys=True))
+        # ERROR: Have to look on action basis, not per transition... - otherwise, env always sets only transition to 0
+        if debug:
+            print('Out edges from', s, ':', out_edges)
+        enabled_actions = set([model.edges[e]['action'] for e in out_edges])
+        if debug:
+            print('Enabled actions', enabled_actions)
+        maximizing_actions = [a for a in enabled_actions if sum([model.edges[e]['prob_weight'] * p_s[e[1]].X for e in out_edges if model.edges[e]['action'] == a]) >= p_s[s].X - precision]
+        # maximizing_transitions = [e for e in out_edges if p_s[e[1]].X >= p_s[e[0]].X - precision]
+        assert maximizing_actions
+        if debug:
+            print("maximizing actions", maximizing_actions)
+        for a in enabled_actions:
+            if a not in maximizing_actions:
+                if debug:
+                    print(f'Added {(s, a)} = 0 as {a} not in maximizing ({[model.edges[e]["prob_weight"] * p_s[e[1]].X for e in out_edges if model.edges[e]["action"] == a]} !>= {p_s[s].X} - {precision})')
+                    fixed_reachabilities[(s, a)] = 0
+        # TODO: should be redundant constraint 
+        if len(maximizing_actions) == 1:
+            if debug:
+                print(f'Added {(s, maximizing_actions[0])} = 1 as {a} is only maximizing from {enabled_actions}')
+            fixed_reachabilities[(s, maximizing_actions[0])] = 1
+        # for e in out_edges:
+        #     if e not in maximizing_transitions:
+        #         if debug:
+        #             print(f'Added {(s, model.edges[e]["action"])} = 0 as {e} not in maximizing ({p_s[e[1]].X} !>= {p_s[e[0]].X} - {precision})')
+        #         fixed_reachabilities[(s, model.edges[e]['action'])] = 0
+        # # not necessary, sum ensures already
+        # if len(maximizing_transitions) == 1:
+        #     if debug:
+        #         print(f'Added {(s, model.edges[maximizing_transitions[0]]["action"])} = 1 as {s} is only maximizing')
+        #     fixed_reachabilities[(s, model.edges[maximizing_transitions[0]]['action'])] = 1
+    if debug:
+        print("fixed", fixed_reachabilities)
+    
+    reachability_value = p_s[(start_state, 'f')].X
+    print("Reachability is", reachability_value)
+    runtime_value = m.Runtime
+    m.dispose()
+    return FixedReachabilitiesReturns(fixed_reachabilities, reachability_value, runtime_value)
+
         self.env = gp.Env()
         self.m = gp.Model("qp", env=self.env)
         self.m.setParam('TimeLimit', timeout)
