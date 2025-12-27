@@ -161,11 +161,17 @@ def get_fixed_reachabilities(model : nx.MultiDiGraph, start_state : str, via_sta
     m.dispose()
     return FixedReachabilitiesReturns(fixed_reachabilities, reachability_value, runtime_value)
 
+
+class QuadraticProblem:
+    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state : str, target_state : str, timeout = 10*60*60, threads = 1, debug = False, memory=4, precision = 1e-4):  
+        # compute reachabilities
+        self.fixed_reachabilities_return = get_fixed_reachabilities(model=model, start_state=start_state, via_state=via_state, target_state=target_state, timeout=timeout, threads=threads, debug=debug, memory=memory)
+        
         self.env = gp.Env()
         self.m = gp.Model("qp", env=self.env)
         self.m.setParam('TimeLimit', timeout)
         self.m.setParam('SoftMemLimit', memory)
-        self.m.setParam('Threads', threads)
+        self.m.setParam('Threads', 6)
         
         self.model = unroll(add_self_loops(model), via_state, start_state)
         self.start_state = start_state
@@ -209,7 +215,7 @@ def get_fixed_reachabilities(model : nx.MultiDiGraph, start_state : str, via_sta
             self.m.addConstr(self.p_s_f[(self.target_state, 't')] == 0)
             self.m.addConstr(self.p_s_t[(self.target_state, 'f')] == 0)
             self.m.addConstr(self.p_s_t[(self.target_state, 't')] == 1)
-
+                
         if debug:
             print("Reaching states", self.reaching_states)
         # default values
@@ -251,13 +257,19 @@ def get_fixed_reachabilities(model : nx.MultiDiGraph, start_state : str, via_sta
                     self.m.addConstr(self.p_s_t[s] == 0)
                     self.m.addConstr(self.p_s_f[s] == 0)
                 
-    def get_max_solution(self):
+    def get_max_solution(self, op):
         if self.debug:
             print(f"Found {self.m.SolCount} solutions:")
         solutions = []
+        reachability_scores = []
+        relevance_scores = []
+
         for s in range(self.m.SolCount):
             # Set which solution we will query from now on
             self.m.params.SolutionNumber = s
+            reachability_scores.append(self.p_s_t[(self.start_state, 'f')].Xn + self.p_s_f[(self.start_state, 'f')].Xn)
+            relevance_scores.append(self.goal_var.Xn)
+            
             if self.debug:
                 print('Solution', s, ':', end='')
             solution = []
@@ -272,9 +284,18 @@ def get_fixed_reachabilities(model : nx.MultiDiGraph, start_state : str, via_sta
             solutions.append(tuple(solution))
             if self.debug:
                 print('')
-        return max(solutions)
+            if self.debug:
+                print("Reachability", self.p_s_t[(self.start_state, 'f')].Xn + self.p_s_f[(self.start_state, 'f')].Xn)
+                print("Relevance", self.goal_var.Xn)
+        reachability_scores = [e for e in reachability_scores]
+        relevance_scores = [e for e in relevance_scores]
+
+        arg_index = [i for i in range(len(reachability_scores)) if reachability_scores[i] >= op(reachability_scores)]
+        op_relevance_score = [i for i in arg_index if relevance_scores[i] >= op([relevance_scores[j] for j in arg_index])]
         
-    def get_solution(self):
+        return (reachability_scores[op_relevance_score[0]], relevance_scores[op_relevance_score[0]])
+        
+    def get_solution(self, op):
         if self.m.status == GRB.INFEASIBLE:
             return GurobiResult(time=self.m.Runtime, reachability_value=-0.2, importance_value=-0.2, start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
         
@@ -283,9 +304,9 @@ def get_fixed_reachabilities(model : nx.MultiDiGraph, start_state : str, via_sta
             if self.m.SolCount == 0:
                 return GurobiResult(time=self.m.Runtime, reachability_value=0, importance_value=0, start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
             else:
-                max_result = self.get_max_solution()
+                max_result = self.get_max_solution(op)
                 return GurobiResult(time=self.m.Runtime, reachability_value=max_result[0], importance_value=max_result[1], start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
-        max_result = self.get_max_solution() 
+        max_result = self.get_max_solution(op) 
         return GurobiResult(time=self.m.Runtime, reachability_value=max_result[0], importance_value=max_result[1], start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
 
 
