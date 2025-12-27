@@ -241,6 +241,12 @@ class QuadraticProblem:
             self.m.addConstr(sum(list(self.p_sa[s].values())) == 1) # scheduler sums up to one
             for a in enabled_actions:
                 self.m.addConstr(self.p_sa[s][a] <= 1)
+        # parse fixed reachability values into model
+        self.m.update() # update to parse variable names
+        for e in self.fixed_reachabilities_return.fixed_reachabilities:
+            self.m.addConstr(self.p_sa[e[0]][e[1]] == self.fixed_reachabilities_return.fixed_reachabilities[e])
+            if self.debug:
+                print(f'From pre-processing, added {self.p_sa[e[0]][e[1]].VarName} = {self.fixed_reachabilities_return.fixed_reachabilities[e]} to model')
              
     def encode_model(self):
         # encode model
