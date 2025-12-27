@@ -155,10 +155,11 @@ def run_experiment(param):
     function = param[0]
     model = param[1]
     arg = param[2]
+    name = param[3]
     
-    print(f'Call {function} with model {model} and arg {arg}')
+    print(f'Call {function} with model {model} ({name}) and arg {arg}')
 
-    return function(model, arg)
+    return function(model, arg, name)
 
 """
 State can be "positive" or loc={i}.
@@ -222,11 +223,15 @@ def follow_path(model, path, name=""):
     
     return parser.call(f'Pmax=? [(F "positive") & ({construct_path(path[1:])})]', name)
 
-def importance_state(model, via_state) -> GurobiResult:
+def importance_state(model, via_state, name) -> GurobiResult:
     target_state = [s for s in model if 'positive' in s]
     assert len(target_state) == 1
     qp = QuadraticProblem(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True)
-    return qp.solve_lower_upper().df()
+    df = qp.solve_lower_upper().df()
+    df.insert(0, 'name', [name])
+    df.insert(1, 'states', [str(len(model.nodes))])
+    df.insert(2, 'transitions', [str(len(model.edges))])
+    return df
 
 def manual_execution():
     assert args
@@ -315,7 +320,7 @@ if __name__ == '__main__':
         print(e)
         with open(e, 'rb') as handle: # need pickle files for nodes
             model = pickle.load(handle)
-        experiments.extend([(importance_state, model, s) for s in random.sample(list(model.nodes()), k = args.samples)])
+        experiments.extend([(importance_state, model, s, e) for s in random.sample(list(model.nodes()), k = min(args.samples, len(model.nodes)))])
         continue
         # experiments.extend([(reach_state, e, f'loc={s}') for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
         # experiments.extend([(avoid_positive_until_state, e, s) for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
