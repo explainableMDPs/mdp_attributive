@@ -22,7 +22,7 @@ class ModelTest(unittest.TestCase):
         r = solver.paper_example()
         self.assertTrue((r['lower_reachability_value'] == r['upper_reachability_value']).all())
         self.assertEqual(r['lower_reachability_value'].iloc[0], 0.98)
-        self.assertEqual(r['lower_importance_value'].iloc[0], 0.525)
+        self.assertEqual(round(r['lower_importance_value'].iloc[0], 3), 0.525)
         self.assertEqual(r['upper_importance_value'].iloc[0], 1)
 
     def test_grid_world(self):

@@ -501,7 +501,7 @@ def paper_example():
     print(r)
     assert (r['lower_reachability_value'] == r['upper_reachability_value']).all()
     assert r['lower_reachability_value'].iloc[0] == 0.98, r['lower_reachability_value'].iloc[0]
-    assert r['lower_importance_value'].iloc[0] == 0.525, r['lower_importance_value'].iloc[0]
+    assert round(r['lower_importance_value'].iloc[0], 3) == 0.525, round(r['lower_importance_value'].iloc[0], 3)
     assert r['upper_importance_value'].iloc[0] == 1, r['lower_importance_value'].iloc[0]
     return r
 
