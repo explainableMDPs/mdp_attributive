@@ -327,6 +327,7 @@ class QuadraticProblem:
         # else:
             # self.m.setObjectiveN(-(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')]), index = 0, priority = 1)
             
+        # Idea: Optimize for importance among all optimal strategies, then set remaining variables to 0
         if sense == GRB.MAXIMIZE:
             self.m.setObjectiveN(self.goal_var, index = 1, priority=0)
         else:
@@ -340,21 +341,35 @@ class QuadraticProblem:
         self.m.optimize()
         # print(self.m.display())
         
-        assert self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X != 0, f'Denominator is valued at 0'
-        
-        return_result = self.get_solution()
+        return_result = self.get_solution(max if sense == GRB.MAXIMIZE else min)
         if self.m.status == GRB.INFEASIBLE or self.m.status == GRB.TIME_LIMIT:
+            if self.m.Status == GRB.INFEASIBLE:
+                self.m.computeIIS()
+                print('\nThe following constraints and variables are in the IIS:')
+                for c in self.m.getConstrs():
+                    if c.IISConstr: print(f'\t{c.constrname}: {self.m.getRow(c)} {c.Sense} {c.RHS}')
+
+                for v in self.m.getVars():
+                    if v.IISLB: print(f'\t{v.varname} ≥ {v.LB}')
+                    if v.IISUB: print(f'\t{v.varname} ≤ {v.UB}')
+    
+            assert False
             self.m.dispose()
             return return_result
         
         assert self.m.status == GRB.OPTIMAL, f'Status is {self.m.status}'
-        print("Importance")
-        print("goal_var", self.goal_var.X)
+        print("Reachability", self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X)
+        print("Relevance", self.goal_var.X)
         if self.debug:
             for v in self.m.getVars():
                 print(f"{v.VarName} {v.X:g}")
             print(f"Obj: {self.m.ObjVal:g}")
-        
+
+        assert self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X != 0, f'Denominator is valued at 0'
+        assert self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X <= 1, f'Reachability is larger than 1 : {self.p_s_t[(self.start_state, "f")].X + self.p_s_f[(self.start_state, "f")].X}'
+        assert abs(self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X - self.fixed_reachabilities_return.reachability) <= 0.01, f'Reachability differs by more than 0.01 : {self.p_s_t[(self.start_state, "f")].X + self.p_s_f[(self.start_state, "f")].X} != {self.fixed_reachabilities_return.reachability}'
+
+
         return return_result
     
     def solve_lower_upper(self):
