@@ -1,9 +1,12 @@
 import networkx as nx
 import gurobipy as gp
 from gurobipy import GRB
-from Result import GurobiResult, GurobiResultLowerUpper
+
 import random
 random.seed(42)
+
+from Result import GurobiResult, GurobiResultLowerUpper
+from fixed_mdp import *
 
 def unroll(model : nx.MultiDiGraph, via_state : str, start_state = None) -> nx.MultiDiGraph:
     """Function to unroll model around via_state and, if start_state is given, prune all states that can not be reached from start_state.
@@ -250,15 +253,133 @@ class QuadraticProblem:
         return_result = self.solve_helper(sense=sense)
         self.m.dispose()
         return return_result
+
+
+def gridworld_experiment():
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    from PIL import Image
+    import numpy as np
     
-if __name__ == '__main__':
-    print("Test")
+    mdp = gridworld_mdp()
     
+    get_fixed_reachabilities(mdp, 's00', 's33', 's60', debug=True)
+    # assert False
+    
+    pos = {s : (int(s[1]), int(s[2])) for s in mdp.nodes()}
+    nx.draw(mdp, pos, with_labels=True, node_size=0)
+    plt.savefig("out/mdp.png")
+    plt.cla()
+    
+    # unrolled = unroll(add_self_loops(mdp), 's00', 's66')
+    qp = QuadraticProblem(mdp, 's00', 's11', 's66', debug=True)
+    r = qp.solve_lower_upper().df()
+    print(r)
+    # assert False
+    
+    import pandas as pd 
+    df_results = pd.DataFrame()
+    for s in mdp.nodes():
+        qp = QuadraticProblem(mdp, 's00', s, 's60', debug=True)
+        r = qp.solve_lower_upper().df()
+        df_results = pd.concat([df_results, r])
+    df_results.to_csv("out/results.csv")
+    
+    print(df_results[df_results['via_state']==f's{3}{3}'].iloc[0][['lower_importance_value', 'upper_importance_value']])
+
+    # use colormap
+    print(plt.cm.jet(0))
+    print(plt.cm.jet(1))
+    
+    w, h = 7, 7
+    data = np.zeros((h, w, 3), dtype=np.uint8)
+    for i in range(7):
+        for j in range(7):
+            print(i,j)
+            h = df_results[df_results['via_state']==f's{i}{j}'].iloc[0][['lower_importance_value', 'upper_importance_value']]
+            print(h)
+            print(data[j,i])
+            # data[i,j] = [1,1,1]
+            # data[i,j] = [int(plt.cm.jet(h['lower_importance_value'])[0]*255), 0, int(plt.cm.jet(h['upper_importance_value'])[2]*255)]
+            data[j,i] = [255, int(h['lower_importance_value']*255), int(h['upper_importance_value']*255)]
+            print(data[i,j])
+    # data[0:256, 0:256] = [255, 0, 0] # red patch in upper left
+    print(data)
+    img = Image.fromarray(data)
+    # img = img.resize((700,700),resample=Image.NEAREST)
+    img.save('out/mdp_results.png')
+    
+    elements = set(zip(df_results['lower_importance_value'], df_results['upper_importance_value']))
+    patches = []
+    for e in elements:
+        patches.append(mpatches.Patch(color=[1, int(e[0]), int(e[1])], label=e))
+    plt.legend(handles=patches)
+    plt.imread('out/mdp_results.png')
+    # plt.imsave('out/mdp_results.png', img, cmap='gray')
+    imgplot = plt.imshow(img, aspect='equal')
+    plt.savefig('out/mdp_results.png', bbox_inches='tight', dpi=200)
+    
+def loop_example():
+    mdp = loop_mdp()
+    
+    get_fixed_reachabilities(mdp, 'a', 'b', 'c', debug=True)
+    
+    qp = QuadraticProblem(mdp, 'a', 'b', 'c', debug=True)
+    r = qp.solve_lower_upper().df()
+    print(r)
+    assert (r['lower_reachability_value'] == r['upper_reachability_value']).all()
+    assert r['lower_reachability_value'].iloc[0] == 1, r['lower_reachability_value'].iloc[0]
+    assert r['lower_importance_value'].iloc[0] == 0, r['lower_importance_value'].iloc[0]
+    assert r['upper_importance_value'].iloc[0] == 1, r['lower_importance_value'].iloc[0]
+    
+    return r
+
+def loop_example_half():
+    mdp = loop_half_mdp()
+    
+    get_fixed_reachabilities(mdp, 'a', 'b', 'pos', debug=True)
+    
+    qp = QuadraticProblem(mdp, 'a', 'b', 'pos', debug=True)
+    r = qp.solve_lower_upper().df()
+    print(r)
+    assert (r['lower_reachability_value'] == r['upper_reachability_value']).all()
+    assert r['lower_reachability_value'].iloc[0] == 0.5, r['lower_reachability_value'].iloc[0]
+    assert (r['lower_importance_value'] == r['upper_importance_value']).all()
+    assert r['lower_importance_value'].iloc[0] == 1, r['lower_importance_value'].iloc[0]
+    return (r)
+
+def paper_example():
+    mdp = paper_example_mdp()
+
+    qp = QuadraticProblem(mdp, 'q0: start_customer', 'consultation_customer', 'positive', debug=True)
+    # qp = QuadraticProblem(mdp, 'q0: start_customer', 'angry', 'positive', debug=True)
+    
+    r = qp.solve_lower_upper().df()
+    print(r)
+    assert (r['lower_reachability_value'] == r['upper_reachability_value']).all()
+    assert r['lower_reachability_value'].iloc[0] == 0.98, r['lower_reachability_value'].iloc[0]
+    assert r['lower_importance_value'].iloc[0] == 0.525, r['lower_importance_value'].iloc[0]
+    assert r['upper_importance_value'].iloc[0] == 1, r['lower_importance_value'].iloc[0]
+    return r
+
+if __name__ == '__main__':   
+    
+    # epidemic_influence_example()
+    # assert False
+    # loop_example()
+    # assert False
+    # gridworld_experiment()
+    # assert False
     # G = nx.MultiDiGraph()
     # G.add_edges_from([('0','1'),('1', '3',), ('0', '2'), ('2', '3')])
     # print(G)
     # print(unroll(G, '1', '0').nodes)
     
+    loop_example_half()
+    assert False
+    
+    # paper_example()
+    # assert False
     
     mdp = nx.MultiDiGraph()
     mdp.add_edge('s0', 'st', action = 'a', prob_weight = 1)
