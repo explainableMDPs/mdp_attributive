@@ -5,6 +5,8 @@ from gurobipy import GRB
 import random
 random.seed(42)
 
+from abc import ABC, abstractmethod
+
 from Result import GurobiResult, GurobiResultLowerUpper
 from fixed_mdp import *
 
@@ -161,17 +163,17 @@ def get_fixed_reachabilities(model : nx.MultiDiGraph, start_state : str, via_sta
     m.dispose()
     return FixedReachabilitiesReturns(fixed_reachabilities, reachability_value, runtime_value)
 
-
-class QuadraticProblem:
-    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state : str, target_state : str, timeout = 10*60*60, threads = 1, debug = False, memory=4, precision = 1e-4):  
+class RelevanceEncoding(ABC):
+    def __init__(self , model : nx.MultiDiGraph, start_state : str, via_state : str, target_state : str, timeout = 10*60*60, threads = 1, debug = False, memory=4, precision = 1e-4):  
         # compute reachabilities
+        # TODO Check if even useful
         self.fixed_reachabilities_return = get_fixed_reachabilities(model=model, start_state=start_state, via_state=via_state, target_state=target_state, timeout=timeout, threads=threads, debug=debug, memory=memory)
-        
+
         self.env = gp.Env()
         self.m = gp.Model("qp", env=self.env)
         self.m.setParam('TimeLimit', timeout)
         self.m.setParam('SoftMemLimit', memory)
-        self.m.setParam('Threads', 6)
+        self.m.setParam('Threads', threads)
         
         self.model = unroll(add_self_loops(model), via_state, start_state)
         self.start_state = start_state
@@ -187,14 +189,11 @@ class QuadraticProblem:
         self.p_s_t = {s : self.m.addVar(ub=1.0, name=f'p_{str(s)}->t', lb = 0.0) for s in self.model.nodes}
         self.p_s_f = {s : self.m.addVar(ub=1.0, name=f'p_{str(s)}->f', lb = 0.0) for s in self.model.nodes}
         self.p_sa = {}
-
-        # start_state = [s for s in self.model.nodes if 'q0: start' in s]
-        # assert len(start_state) == 1, start_state
-        # self.start_state = start_state[0]
         
-        # target_state = [s for s in self.model.nodes if 'negative' in s]
-        # assert len(target_state) == 1, target_state
-        # self.target_state = target_state[0]
+        self.tau_s = {s : self.m.addVar(name=f'tau_{str(s)}', lb = 0.0, ub = 1.0) for s in self.model.nodes}
+        self.epsilon = self.m.addVar(ub=1.0, name=f'epsilon')
+        self.m.addConstr(self.epsilon == precision)
+    
         if (self.target_state, 'f') not in self.model.nodes:
             print('###### No negative contained ######')
             self.reaching_states = [s for s in self.model.nodes if s[0] != self.target_state and nx.has_path(self.model, s, (self.target_state, 't'))]
@@ -216,55 +215,31 @@ class QuadraticProblem:
             self.m.addConstr(self.p_s_f[(self.target_state, 't')] == 0)
             self.m.addConstr(self.p_s_t[(self.target_state, 'f')] == 0)
             self.m.addConstr(self.p_s_t[(self.target_state, 't')] == 1)
-                
+            
         if debug:
             print("Reaching states", self.reaching_states)
         # default values
-
         
         self.encode_actions()
+        # TODO check if fixed reachabilities improve performance
+        # for e in self.fixed_reachabilities_return.fixed_reachabilities:
+        #     self.m.addConstr(self.p_sa[e[0]][e[1]] == self.fixed_reachabilities_return.fixed_reachabilities[e])
+        #     if self.debug:
+        #         print(f'From pre-processing, added {self.p_sa[e[0]][e[1]].VarName} = {self.fixed_reachabilities_return.fixed_reachabilities[e]} to model')
+
+
         self.encode_model()
         
         self.goal_var = self.m.addVar(ub=1.0, name='goal variable', lb = 0)
         self.m.addConstr(self.goal_var*(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')]) == self.p_s_t[(self.start_state, 'f')])
-        # self.m.addConstr(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')] >= 0.001)
         
-    def encode_actions(self) -> dict:
-        # encode actions - only for states that can reach the terminal state
-        for s in self.model.nodes:
-            # Encode pos and neg states as absorbing, i.e. without available actions. Thus, the can not be included in p_sa
-            # print(self.model.edges[list(self.model.out_edges(s))[0]]['action'])
-            enabled_actions = set([self.model.edges[e]['action'] for e in list(self.model.edges(s, keys=True))])
-            print(f'enabled from {s} : {enabled_actions}')
-            assert len(enabled_actions) >= 1, f'State{s} has no enabled action'
-            self.p_sa[s] = {a : self.m.addVar(ub=1.0, name=str(s)+'_'+a, lb = 0, vtype=GRB.BINARY) for a in enabled_actions} # 
-            self.m.addConstr(sum(list(self.p_sa[s].values())) == 1) # scheduler sums up to one
-            for a in enabled_actions:
-                self.m.addConstr(self.p_sa[s][a] <= 1)
-        # parse fixed reachability values into model
-        self.m.update() # update to parse variable names
-        for e in self.fixed_reachabilities_return.fixed_reachabilities:
-            self.m.addConstr(self.p_sa[e[0]][e[1]] == self.fixed_reachabilities_return.fixed_reachabilities[e])
-            if self.debug:
-                print(f'From pre-processing, added {self.p_sa[e[0]][e[1]].VarName} = {self.fixed_reachabilities_return.fixed_reachabilities[e]} to model')
-             
-    def encode_model(self):
-        # encode model
-        for s in self.p_sa:
-            enabled_actions = set([self.model[e[0]][e[1]][k]['action'] for e in list(self.model.edges(s)) for k in self.model[s][e[1]]])
-            assert len(enabled_actions) >= 1, f'State{s} has no enabled action'
-            if s in self.reaching_states:
-                self.m.addConstr(self.p_s_t[s] == sum([self.p_sa[s][self.model.edges[e]['action']] * float(self.model.edges[e]['prob_weight']) * self.p_s_t[e[1]] for e in list(self.model.edges(s, keys=True))]))
-                self.m.addConstr(self.p_s_f[s] == sum([self.p_sa[s][self.model.edges[e]['action']] * float(self.model.edges[e]['prob_weight']) * self.p_s_f[e[1]] for e in list(self.model.edges(s, keys=True))]))
-            else:
-                if self.target_state not in s[0]:
-                    # Not reachable states are still in strategy - exclude other target states
-                    if self.debug:
-                        print(f'Set {s} to 0')
-                    self.m.addConstr(self.p_s_t[s] == 0)
-                    self.m.addConstr(self.p_s_f[s] == 0)
-                
-    def get_max_solution(self, op):
+        # TODO Update to encode reachability direct
+        # self.m.addConstr(self.goal_var == self.p_s_t[(self.start_state, 'f')])
+        # IMPORTANT: Only needed when not working on optimized transitions. Then, every strategy maximizes reachability probability
+        self.m.addConstr(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')] >= self.fixed_reachabilities_return.reachability)
+        
+
+    def get_max_solution(self, op, precision=3):
         if self.debug:
             print(f"Found {self.m.SolCount} solutions:")
         solutions = []
@@ -294,8 +269,8 @@ class QuadraticProblem:
             if self.debug:
                 print("Reachability", self.p_s_t[(self.start_state, 'f')].Xn + self.p_s_f[(self.start_state, 'f')].Xn)
                 print("Relevance", self.goal_var.Xn)
-        reachability_scores = [e for e in reachability_scores]
-        relevance_scores = [e for e in relevance_scores]
+        reachability_scores = [round(e, precision) for e in reachability_scores]
+        relevance_scores = [round(e, precision) for e in relevance_scores]
 
         arg_index = [i for i in range(len(reachability_scores)) if reachability_scores[i] >= op(reachability_scores)]
         op_relevance_score = [i for i in arg_index if relevance_scores[i] >= op([relevance_scores[j] for j in arg_index])]
@@ -316,22 +291,8 @@ class QuadraticProblem:
         max_result = self.get_max_solution(op) 
         return GurobiResult(time=self.m.Runtime, reachability_value=max_result[0], importance_value=max_result[1], start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
 
-
     def solve_helper(self, sense=GRB.MAXIMIZE):
-        # if sense == GRB.MAXIMIZE:
-        # Higher priority is solved first ... while imposing constraints that ensure that
-        # the quality of higher-priority objectives isn’t degraded by more than the specified tolerance
-        # (https://docs.gurobi.com/projects/optimizer/en/current/features/multiobjective.html#secmultipleobjectives)
-        # maximize reachability, then optimize for importance
-        self.m.setObjectiveN(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')], index = 0, priority = 1) 
-        # else:
-            # self.m.setObjectiveN(-(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')]), index = 0, priority = 1)
-            
-        # Idea: Optimize for importance among all optimal strategies, then set remaining variables to 0
-        if sense == GRB.MAXIMIZE:
-            self.m.setObjectiveN(self.goal_var, index = 1, priority=0)
-        else:
-            self.m.setObjectiveN(-self.goal_var, index = 1, priority=0)
+        self.set_target(sense)
             
         self.m.ModelSense = GRB.MAXIMIZE
         # self.m.setObjective(self.goal_var, sense = sense)
@@ -339,7 +300,6 @@ class QuadraticProblem:
         self.m.update()
         
         self.m.optimize()
-        # print(self.m.display())
         
         return_result = self.get_solution(max if sense == GRB.MAXIMIZE else min)
         if self.m.status == GRB.INFEASIBLE or self.m.status == GRB.TIME_LIMIT:
@@ -362,26 +322,26 @@ class QuadraticProblem:
         print("Relevance", self.goal_var.X)
         if self.debug:
             for v in self.m.getVars():
-                print(f"{v.VarName} {v.X:g}")
+                if v.X != 0: # "->" in v.VarName or
+                    print(f"{v.VarName} {v.X:g}")
             print(f"Obj: {self.m.ObjVal:g}")
 
         assert self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X != 0, f'Denominator is valued at 0'
         assert self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X <= 1, f'Reachability is larger than 1 : {self.p_s_t[(self.start_state, "f")].X + self.p_s_f[(self.start_state, "f")].X}'
         assert abs(self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X - self.fixed_reachabilities_return.reachability) <= 0.01, f'Reachability differs by more than 0.01 : {self.p_s_t[(self.start_state, "f")].X + self.p_s_f[(self.start_state, "f")].X} != {self.fixed_reachabilities_return.reachability}'
 
-
         return return_result
     
     def solve_lower_upper(self):
         return_result_lower = self.solve_helper(sense=GRB.MINIMIZE)
-        return_result_upper = self.solve_helper(sense=GRB.MAXIMIZE)        
+        return_result_upper = self.solve_helper(sense=GRB.MAXIMIZE)
         
         assert return_result_lower.start_state == return_result_upper.start_state
         assert return_result_lower.via_state == return_result_upper.via_state
         assert return_result_lower.target_state == return_result_upper.target_state
         assert return_result_lower.timeout == return_result_upper.timeout
         assert return_result_lower.status == return_result_upper.status
-        assert abs(return_result_lower.reachability_value - return_result_upper.reachability_value) <= 1e-3, f'{abs(return_result_lower.reachability_value - return_result_upper.reachability_value)}'
+        assert abs(return_result_lower.reachability_value - return_result_upper.reachability_value) <= 1e-3, f'{return_result_lower.reachability_value} - {return_result_upper.reachability_value} = {abs(return_result_lower.reachability_value - return_result_upper.reachability_value)}'
         assert return_result_lower.importance_value <= return_result_upper.importance_value
         
         result_lower_upper = GurobiResultLowerUpper(return_result_lower.time + return_result_upper.time, return_result_lower.reachability_value, return_result_lower.importance_value, 
@@ -396,7 +356,150 @@ class QuadraticProblem:
         return_result = self.solve_helper(sense=sense)
         self.m.dispose()
         return return_result
+    
+    @abstractmethod
+    def encode_actions(self):
+        pass
+    
+    @abstractmethod
+    def encode_model(self):
+        pass
+    
+    @abstractmethod
+    def set_target(self, sense):
+        pass
+    
+class LinearEncoding(RelevanceEncoding):
+    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state : str, target_state : str, timeout = 10*60*60, threads = 1, debug = False, memory=4, precision = 1e-4): 
+        super().__init__(model, start_state, via_state, target_state, timeout=timeout, threads=threads, debug=debug, memory=memory, precision=precision)
+        
+    def encode_actions(self) -> dict:
+        # encode actions - only for states that can reach the terminal state
+        for s in self.model.nodes: # TODO shorten here to reaching states
+            # Encode pos and neg states as absorbing, i.e. without available actions. Thus, the can not be included in p_sa
+            # print(self.model.edges[list(self.model.out_edges(s))[0]]['action'])
+            enabled_actions = set([self.model.edges[e]['action'] for e in list(self.model.edges(s, keys=True))])
+            print(f'enabled from {s} : {enabled_actions}')
+            assert len(enabled_actions) >= 1, f'State{s} has no enabled action'
+            self.p_sa[s] = {a : self.m.addVar(ub=1.0, name=str(s)+'_'+a, lb = 0, vtype=GRB.BINARY) for a in enabled_actions} # 
+            self.m.addConstr(sum(list(self.p_sa[s].values())) == 1) # scheduler sums up to one
+            for a in enabled_actions:
+                self.m.addConstr(self.p_sa[s][a] <= 1)
+        # parse fixed reachability values into model
+        self.m.update() # update to parse variable names
 
+    def encode_model(self):
+        # encode model
+        for s in self.p_sa:
+            enabled_actions = set([self.model[e[0]][e[1]][k]['action'] for e in list(self.model.edges(s)) for k in self.model[s][e[1]]])
+            assert len(enabled_actions) >= 1, f'State{s} has no enabled action'
+            if s in self.reaching_states:
+                self.m.addConstr(self.p_s_t[s] == sum([self.p_sa[s][self.model.edges[e]['action']] * float(self.model.edges[e]['prob_weight']) * self.p_s_t[e[1]] for e in list(self.model.edges(s, keys=True))]))
+                self.m.addConstr(self.p_s_f[s] == sum([self.p_sa[s][self.model.edges[e]['action']] * float(self.model.edges[e]['prob_weight']) * self.p_s_f[e[1]] for e in list(self.model.edges(s, keys=True))]))
+                # TODO: test overapproximation
+                if False:
+                    for a in enabled_actions:
+                        self.m.addConstr(self.p_s_t[s] + self.p_s_f[s] >= sum([float(self.model.edges[e]['prob_weight']) * (self.p_s_t[e[1]] + self.p_s_f[e[1]]) for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a]))
+                                                                    #   sum([float(self.model.edges[e]['prob_weight']) * self.p_s_f[e[1]] for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a]))
+                #     self.m.addConstr(self.p_s_f[s] >= sum([float(self.model.edges[e]['prob_weight']) * self.p_s_f[e[1]] for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a]))
+                # Encode paths
+                if s != self.target_state:
+                    for a in enabled_actions:
+                        print("added:", sum([self.tau_s[e[1]] * float(self.model.edges[e]['prob_weight']) for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a]))
+                        print("action", a, "edges", [e for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a])
+                        self.m.addConstr(self.tau_s[s] + self.epsilon <= sum([self.tau_s[e[1]] * float(self.model.edges[e]['prob_weight']) for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a])
+                                                             + (1 - self.p_sa[s][a]) )
+            else:
+                if self.target_state not in s[0]:
+                    # Not reachable states are still in strategy - exclude other target states
+                    if self.debug:
+                        print(f'Set {s} to 0')
+                    self.m.addConstr(self.p_s_t[s] == 0)
+                    self.m.addConstr(self.p_s_f[s] == 0)
+        
+    def set_target(self, sense):
+        # if sense == GRB.MAXIMIZE:
+        # Higher priority is solved first ... while imposing constraints that ensure that
+        # the quality of higher-priority objectives isn’t degraded by more than the specified tolerance
+        # (https://docs.gurobi.com/projects/optimizer/en/current/features/multiobjective.html#secmultipleobjectives)
+        # maximize reachability, then optimize for importance
+        # self.m.setObjectiveN(- sum(self.p_s_t.values()) - sum(self.p_s_f.values()), index = 0, priority = 1) 
+        # self.m.setObjectiveN(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')] - sum([self.p_s_t[s] for s in self.model.nodes if s != self.start_state]) - sum([self.p_s_f[s] for s in self.model.nodes if s != self.start_state]), index = 0, priority = 1) 
+        if False:
+            self.m.setObjectiveN(-sum([self.p_s_t[s] for s in self.model.nodes]) - sum([self.p_s_f[s] for s in self.model.nodes]), index = 0, priority = 1)
+        self.m.setObjectiveN(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')], index = 0, priority = 1)
+        # else:
+            # self.m.setObjectiveN(-(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')]), index = 0, priority = 1)
+            
+        # Idea: Optimize for importance among all optimal strategies, then set remaining variables to 0
+        if sense == GRB.MAXIMIZE:
+            self.m.setObjectiveN(self.goal_var, index = 1, priority=0)
+        else:
+            self.m.setObjectiveN(-self.goal_var, index = 1, priority=0)
+        
+class QuadraticProblem(RelevanceEncoding):
+    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state : str, target_state : str, timeout = 10*60*60, threads = 1, debug = False, memory=4, precision = 1e-4):  
+        super().__init__(model, start_state, via_state, target_state, timeout=timeout, threads=threads, debug=debug, memory=memory, precision=precision)
+
+    def encode_actions(self) -> dict:
+        # encode actions - only for states that can reach the terminal state
+        for s in self.model.nodes: # TODO shorten here to reaching states
+            # Encode pos and neg states as absorbing, i.e. without available actions. Thus, the can not be included in p_sa
+            # print(self.model.edges[list(self.model.out_edges(s))[0]]['action'])
+            enabled_actions = set([self.model.edges[e]['action'] for e in list(self.model.edges(s, keys=True))])
+            print(f'enabled from {s} : {enabled_actions}')
+            assert len(enabled_actions) >= 1, f'State{s} has no enabled action'
+            self.p_sa[s] = {a : self.m.addVar(ub=1.0, name=str(s)+'_'+a, lb = 0) for a in enabled_actions} # vtype=GRB.BINARY
+            self.m.addConstr(sum(list(self.p_sa[s].values())) == 1) # scheduler sums up to one
+            for a in enabled_actions:
+                self.m.addConstr(self.p_sa[s][a] <= 1)
+        # parse fixed reachability values into model
+        self.m.update() # update to parse variable names
+
+    def encode_model(self):
+        # encode model
+        for s in self.p_sa:
+            enabled_actions = set([self.model[e[0]][e[1]][k]['action'] for e in list(self.model.edges(s)) for k in self.model[s][e[1]]])
+            assert len(enabled_actions) >= 1, f'State{s} has no enabled action'
+            if s in self.reaching_states:
+                self.m.addConstr(self.p_s_t[s] == sum([self.p_sa[s][self.model.edges[e]['action']] * float(self.model.edges[e]['prob_weight']) * self.p_s_t[e[1]] for e in list(self.model.edges(s, keys=True))]))
+                self.m.addConstr(self.p_s_f[s] == sum([self.p_sa[s][self.model.edges[e]['action']] * float(self.model.edges[e]['prob_weight']) * self.p_s_f[e[1]] for e in list(self.model.edges(s, keys=True))]))
+                for a in enabled_actions:
+                    self.m.addConstr(self.p_s_t[s] + self.p_s_f[s] >= sum([float(self.model.edges[e]['prob_weight']) * (self.p_s_t[e[1]] + self.p_s_f[e[1]]) for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a]))
+                                                                #   sum([float(self.model.edges[e]['prob_weight']) * self.p_s_f[e[1]] for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a]))
+                #     self.m.addConstr(self.p_s_f[s] >= sum([float(self.model.edges[e]['prob_weight']) * self.p_s_f[e[1]] for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a]))
+                # Encode paths
+                if s != self.target_state:
+                    for a in enabled_actions:
+                        print("added:", sum([self.tau_s[e[1]] * float(self.model.edges[e]['prob_weight']) for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a]))
+                        print("action", a, "edges", [e for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a])
+                        self.m.addConstr(self.tau_s[s] + self.epsilon <= sum([self.tau_s[e[1]] * float(self.model.edges[e]['prob_weight']) for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a])
+                                                             + (1 - self.p_sa[s][a]) )
+            else:
+                if self.target_state not in s[0]:
+                    # Not reachable states are still in strategy - exclude other target states
+                    if self.debug:
+                        print(f'Set {s} to 0')
+                    self.m.addConstr(self.p_s_t[s] == 0)
+                    self.m.addConstr(self.p_s_f[s] == 0)
+                
+    def set_target(self, sense):
+        # if sense == GRB.MAXIMIZE:
+        # Higher priority is solved first ... while imposing constraints that ensure that
+        # the quality of higher-priority objectives isn’t degraded by more than the specified tolerance
+        # (https://docs.gurobi.com/projects/optimizer/en/current/features/multiobjective.html#secmultipleobjectives)
+        # maximize reachability, then optimize for importance
+        # self.m.setObjectiveN(- sum(self.p_s_t.values()) - sum(self.p_s_f.values()), index = 0, priority = 1) 
+        # self.m.setObjectiveN(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')] - sum([self.p_s_t[s] for s in self.model.nodes if s != self.start_state]) - sum([self.p_s_f[s] for s in self.model.nodes if s != self.start_state]), index = 0, priority = 1) 
+        self.m.setObjectiveN(-sum([self.p_s_t[s] for s in self.model.nodes]) - sum([self.p_s_f[s] for s in self.model.nodes]), index = 0, priority = 1)
+        # else:
+            # self.m.setObjectiveN(-(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')]), index = 0, priority = 1)
+            
+        # Idea: Optimize for importance among all optimal strategies, then set remaining variables to 0
+        if sense == GRB.MAXIMIZE:
+            self.m.setObjectiveN(self.goal_var, index = 1, priority=0)
+        else:
+            self.m.setObjectiveN(-self.goal_var, index = 1, priority=0)
 
 def gridworld_experiment():
     import matplotlib.pyplot as plt
@@ -423,7 +526,7 @@ def gridworld_experiment():
     import pandas as pd 
     df_results = pd.DataFrame()
     for s in mdp.nodes():
-        qp = QuadraticProblem(mdp, 's00', s, 's60', debug=True)
+        qp = QuadraticProblem(mdp, 's00', s, 's66', debug=True)
         r = qp.solve_lower_upper().df()
         df_results = pd.concat([df_results, r])
     df_results.to_csv("out/results.csv")
@@ -434,17 +537,58 @@ def gridworld_experiment():
     print(plt.cm.jet(0))
     print(plt.cm.jet(1))
     
+    w, h = 7, 15
+    data = np.zeros((h, w, 3), dtype=np.uint8)
+    color_mapping = {(1,1):(255, 255, 255), (0,1):(0, 191, 191), (0,0): (255, 0,0)}
+    for i in range(7):
+        for j in range(7):
+            print(i,j)
+            # Have to shift y to adapt 
+            h = df_results[df_results['via_state']==f's{i}{6-j}{False}'].iloc[0][['lower_importance_value', 'upper_importance_value']]
+            print(h)
+            print(data[j,i])
+            # data[i,j] = [int(plt.cm.jet(h['lower_importance_value'])[0]*255), 0, int(plt.cm.jet(h['upper_importance_value'])[2]*255)]
+            data[j,i] = color_mapping[(h['lower_importance_value'], h['upper_importance_value'])]#[255, int(h['lower_importance_value']*255), int(h['upper_importance_value']*255)]
+            print(data[i,j])
+    for i in range(7):
+        for j in range(7):
+            print(i,j)
+            # Have to shift y to adapt 
+            h = df_results[df_results['via_state']==f's{i}{6-j}{True}'].iloc[0][['lower_importance_value', 'upper_importance_value']]
+            print(h)
+            print(data[j,i])
+            # data[i,j] = [int(plt.cm.jet(h['lower_importance_value'])[0]*255), 0, int(plt.cm.jet(h['upper_importance_value'])[2]*255)]
+            data[j+8,i] = color_mapping[(h['lower_importance_value'], h['upper_importance_value'])]#[255-int(h['lower_importance_value']*255), int(h['upper_importance_value']*255), 255]
+            print(data[i,j])
+        # set border to be white for plot
+        data[7,i] = (255, 255, 255)
+    # data[0:256, 0:256] = [255, 0, 0] # red patch in upper left
+    print(data)
+    img = Image.fromarray(data)
+    # img = img.resize((700,700),resample=Image.NEAREST)
+    img.save('out/mdp_results_full.png')
+    
+    elements = set(zip(df_results['lower_importance_value'], df_results['upper_importance_value']))
+    patches = []
+    for e in elements:
+        patches.append(mpatches.Patch(color=np.array(color_mapping[e])/255, label=e))
+    plt.legend(handles=patches, loc='lower right')
+    plt.imread('out/mdp_results_full.png')
+    # plt.imsave('out/mdp_results.png', img, cmap='gray')
+    imgplot = plt.imshow(img, aspect='equal')
+    plt.savefig('out/mdp_results_full.png', bbox_inches='tight', dpi=200)
+    
     w, h = 7, 7
     data = np.zeros((h, w, 3), dtype=np.uint8)
     for i in range(7):
         for j in range(7):
             print(i,j)
-            h = df_results[df_results['via_state']==f's{i}{j}'].iloc[0][['lower_importance_value', 'upper_importance_value']]
+            # Have to shift y to adapt 
+            h = df_results[df_results['via_state']==f's{i}{6-j}{True}'].iloc[0][['lower_importance_value', 'upper_importance_value']]
             print(h)
             print(data[j,i])
-            # data[i,j] = [1,1,1]
             # data[i,j] = [int(plt.cm.jet(h['lower_importance_value'])[0]*255), 0, int(plt.cm.jet(h['upper_importance_value'])[2]*255)]
-            data[j,i] = [255, int(h['lower_importance_value']*255), int(h['upper_importance_value']*255)]
+            data[j,i] = color_mapping[(h['lower_importance_value'], h['upper_importance_value'])]#[255-int(h['lower_importance_value']*255), int(h['upper_importance_value']*255), 255]
             print(data[i,j])
     # data[0:256, 0:256] = [255, 0, 0] # red patch in upper left
     print(data)
@@ -482,8 +626,8 @@ def loop_example_half():
     
     get_fixed_reachabilities(mdp, 'a', 'b', 'pos', debug=True)
     
-    qp = QuadraticProblem(mdp, 'a', 'b', 'pos', debug=True)
-    r = qp.solve_lower_upper().df()
+    lp = LinearEncoding(mdp, 'a', 'b', 'pos', debug=True)
+    r = lp.solve_lower_upper().df()
     print(r)
     assert (r['lower_reachability_value'] == r['upper_reachability_value']).all()
     assert r['lower_reachability_value'].iloc[0] == 0.5, r['lower_reachability_value'].iloc[0]
@@ -505,6 +649,38 @@ def paper_example():
     assert r['upper_importance_value'].iloc[0] == 1, r['lower_importance_value'].iloc[0]
     return r
 
+def epidemic_influence_example():
+    max_pop = 9
+    mdp = epidemic_influence_mdp(max_pop, debug=False)
+    # TODO look at reachable MDP from (max_pop, 0, 2*max_pop)
+    # TODO plot MDP with dot layout
+    # TODO analyze importance of starting states? - e.g. start with V vaccinations in setting if (P,I) - can choose vaccinations arbitrarily
+    import matplotlib.pyplot as plt
+    import networkx.drawing.nx_pydot as nx_pydot
+    from networkx.drawing.nx_pydot import write_dot
+    write_dot(mdp, 'out/vacc.dot')
+    import pandas as pd 
+    df_results = pd.DataFrame()
+    s0 = 'q0: start'
+    for s in nx.descendants(mdp, s0):
+        if s[0] != max_pop or s[1] != max_pop:
+            continue
+        qp = QuadraticProblem(mdp, s0, s, 'positive', debug=True)
+        r = qp.solve_lower_upper().df()
+        df_results = pd.concat([df_results, r])
+    df_results.to_csv("out/results.csv")
+    assert False
+    
+    for s in mdp: 
+        print(s)
+        write_dot(unroll(mdp, s, (max_pop, max_pop, 2*max_pop)), 'out/vacc_unrolled.dot')
+        assert False
+        
+        qp = QuadraticProblem(mdp, (max_pop,0, 2*max_pop), s, 'pos', debug=True)
+        r = qp.solve_lower_upper().df()
+        print(r)
+    assert False
+    
 if __name__ == '__main__':   
     
     # epidemic_influence_example()
@@ -537,6 +713,19 @@ if __name__ == '__main__':
     mdp.add_edge('s2', 'sink', action = 'b', prob_weight = 0.9)
     print('prior', [(e, mdp.edges[e]) for e in mdp.edges])
     
+    import pickle
+    with open('out/models/model_spotify1000_model-it_0.pickle', 'rb') as handle: #open(f'out/models/model_{name}.pickle', 'rb') as handle:
+        mdp = pickle.load(handle)
+    # get_reachability_all_states(mdp, 'out/exportvector.txt', 'out/out.lab')
+    target_state = [s for s in mdp.nodes() if 'positive' in s]
+    start_state = [s for s in mdp.nodes() if 'q0' in s]
+    assert len(target_state) == 1
+    assert len(start_state) == 1
+    # get_fixed_reachabilities(mdp, start_state[0], list(mdp.nodes())[10], target_state[0], debug=True)
+    qp = QuadraticProblem(mdp, start_state[0], list(mdp.nodes())[10], target_state[0], debug=True)
+    print(qp.solve_lower_upper().df())
+    assert False
+    
     unrolled = unroll(add_self_loops(mdp), 's1', 's0')
     print(unrolled.nodes)
     for e in unrolled.edges:
@@ -545,8 +734,10 @@ if __name__ == '__main__':
     qp = QuadraticProblem(mdp, 's0', 's2', 'st', debug=True)
     print(qp.solve_lower_upper().df())
 
-    
-# TODO: Can actions being binary be further exploited?
+
 # TODO: Do I need all 4 cases in problem?
 # TODO assert that first objective is optimal for reachability
 # TODO rewrite into one set of variables p_s
+# TODO think about if run whole thing on doubled model or original
+# TODO think about how to transfer to initial states if not all contained
+# TODO BPIC - why self-loops in states from company?
