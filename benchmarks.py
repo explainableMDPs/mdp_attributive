@@ -17,7 +17,7 @@ random.seed(seed)
 
 from Result import PrismResult, GurobiResult
 from PrismParser import PrismParser, StormParser
-from solver import QuadraticProblem
+from solver import QuadraticProblem, LinearEncoding
 
 import pyrootutils
 path = pyrootutils.find_root(search_from=__file__, indicator=".project-root")
@@ -59,6 +59,10 @@ def get_parser(name):
         print("######### Spotify ##########")
         from LogParser import SpotifyParser
         parser = SpotifyParser('data/spotify/', 'data/activities_spotify.xml', int(name.split('spotify')[1]))
+    elif 'epidemic' in name:
+        print("######### Epidemic ##########")
+        from LogParser import EpidemicParser
+        parser = EpidemicParser(int(name.split('epidemic')[1]))
     else:
         return None
     
@@ -227,11 +231,25 @@ def importance_state(model, via_state, name) -> GurobiResult:
     target_state = [s for s in model if 'positive' in s]
     assert len(target_state) == 1
     qp = QuadraticProblem(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True)
-    df = qp.solve_lower_upper().df()
-    df.insert(0, 'name', [name])
-    df.insert(1, 'states', [str(len(model.nodes))])
-    df.insert(2, 'transitions', [str(len(model.edges))])
-    return df
+    df_qp = qp.solve_lower_upper().df()
+    df_qp.insert(0, 'name', [name])
+    df_qp.insert(1, 'states', [str(len(model.nodes))])
+    df_qp.insert(2, 'transitions', [str(len(model.edges))])
+    df_qp.insert(3, 'encoding', ['quadratic'])
+    
+    lp = LinearEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True)
+    df_lp = lp.solve_lower_upper().df()
+    df_lp.insert(0, 'name', [name])
+    df_lp.insert(1, 'states', [str(len(model.nodes))])
+    df_lp.insert(2, 'transitions', [str(len(model.edges))])
+    df_lp.insert(3, 'encoding', ['linear'])
+    
+    # check for 0.0011 as 0.001 is precision, but is periodic (thus represented as 0.0010...01) -> compare against 0.0011
+    assert (abs(df_lp['lower_importance_value'].iloc[0] - df_qp['lower_importance_value'].iloc[0]) <= 0.0011).all(), f'Error for "{name}" with via_state "{via_state}" (lower): {df_lp['lower_importance_value'].iloc[0]} != {df_qp['lower_importance_value'].iloc[0]}'
+    assert (abs(df_lp['upper_importance_value'].iloc[0] - df_qp['upper_importance_value'].iloc[0]) <= 0.0011).all(), f'Error for "{name}" with via_state "{via_state}" (upper): {str(df_lp['upper_importance_value'].iloc[0])} != {df_qp['upper_importance_value'].iloc[0]}'
+    df_merged = pd.concat([df_qp, df_lp], ignore_index=True, sort=False)
+
+    return df_merged
 
 def manual_execution():
     assert args
@@ -273,7 +291,7 @@ if __name__ == '__main__':
     parser.add_argument('-pl', '--path_length', help = "Path length range", type=int, nargs='+', default = [1,10,1])
     parser.add_argument('-c', '--cores', help = "Cores to use to parallelize experiments", type=int, default = 1)
     parser.add_argument('-e', '--experiments', help = "Name of experiments to run", nargs='+', type=str, 
-                        default = ['greps', 'bpic12', 'bpic17-before', 'bpic17-after', 'bpic17-both', 'spotify'])
+                        default = ['greps', 'bpic12', 'bpic17-before', 'bpic17-after', 'bpic17-both', 'spotify', 'epidemic4'])
     parser.add_argument('-rm', '--rebuild_models', help = "Rebuild models, implies rebuilding strategies", action = 'store_true')
     parser.add_argument('-rs', '--rebuild_paths', help = "Rebuild paths for models", action = 'store_true')
     parser.add_argument('-mi', '--model_iterations', help = "Number of models to generate for each setting", type=int, default = 10)
@@ -320,7 +338,12 @@ if __name__ == '__main__':
         print(e)
         with open(e, 'rb') as handle: # need pickle files for nodes
             model = pickle.load(handle)
-        experiments.extend([(importance_state, model, s, e) for s in random.sample(list(model.nodes()), k = min(args.samples, len(model.nodes)))])
+        if "epidemic" in str(e):
+            max_pop = int(str(e).replace('out/models/model_epidemic', '').replace('_model-it_0.pickle', ''))
+            vacc_states = list([s for s in model.nodes() if s[0] == max_pop and s[1] == max_pop])
+            experiments.extend([(importance_state, model, s, e) for s in random.sample(vacc_states, k = min(args.samples, len(vacc_states)))])
+        else:
+            experiments.extend([(importance_state, model, s, e) for s in random.sample(list(model.nodes()), k = min(args.samples, len(model.nodes)))])
         continue
         # experiments.extend([(reach_state, e, f'loc={s}') for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
         # experiments.extend([(avoid_positive_until_state, e, s) for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
