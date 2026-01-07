@@ -227,3 +227,13 @@ class SpotifyParser(LogParser):
         # save_automaton_to_file(model, "out/model.png", file_type="png")
         
         return model
+    
+class EpidemicParser(LogParser):
+    # Does not need to parse anything
+    max_population = 0
+    def __init__(self, max_population):
+        self.max_population = max_population
+        
+    def build_benchmark(self, prism_name = None):
+        from fixed_mdp import epidemic_influence_mdp
+        return epidemic_influence_mdp(max_pop=self.max_population)
