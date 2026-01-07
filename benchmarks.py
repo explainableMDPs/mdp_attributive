@@ -344,7 +344,8 @@ if __name__ == '__main__':
             model = pickle.load(handle)
         if "epidemic" in str(e):
             max_pop = int(str(e).replace('out/models/model_epidemic', '').replace('_model-it_0.pickle', ''))
-            vacc_states = list([s for s in model.nodes() if s[0] == max_pop and s[1] == max_pop])
+            vacc_states = list([s for s in model.nodes() if s[0] == max_pop and s[1] == 1 and nx.has_path(model, 'q0: start', 'positive')])
+            print("For model ", model, "there are", len(vacc_states), "states")
             experiments.extend([(importance_state, model, s, e) for s in random.sample(vacc_states, k = min(args.samples, len(vacc_states)))])
         else:
             experiments.extend([(importance_state, model, s, e) for s in random.sample(list(model.nodes()), k = min(args.samples, len(model.nodes)))])
