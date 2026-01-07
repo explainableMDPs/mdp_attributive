@@ -1,2 +1,3 @@
-python3 benchmarks.py --experiments spotify100 spotify500 spotify1000 spotify3000 spotify5000 spotify7000 --model_iterations 10 --iterations 20 --cores 50 --timeout 3600 --solver Storm --rebuild_paths
+python3 benchmarks.py --experiments greps bpic12 bpic17-before bpic17-after epidemic4 epidemic5 epidemic6 epidemic7 epidemic8 epidemic9 epidemic10 --model_iterations 1 --iterations 10 --cores 50 --timeout 3600 --rebuild_models --samples 1000
+# python3 benchmarks.py --experiments spotify100 spotify500 spotify1000 spotify3000 spotify5000 spotify7000 --model_iterations 10 --iterations 20 --cores 50 --timeout 3600 --solver Storm --rebuild_paths
 #   spotify5000 spotify7000 spotify1000 spotify3000 spotify5000 spotify9000 --rebuild_models
