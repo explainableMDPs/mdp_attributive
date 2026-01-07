@@ -59,6 +59,8 @@ def epidemic_influence_mdp(max_pop, debug = False) -> nx.MultiDiGraph:
 
             for k in range(S + 1):
                 prob = hypergeom(M, n, N).pmf(k)
+                if S == 0:
+                    prob = 1
                 S_prime, I_prime = S - k, I - 1 + k
                 if S_prime >= 0 and I_prime <= MAX_POPULATION:
                     transitions[(S_prime, I_prime, V_prime)] = prob
@@ -68,8 +70,10 @@ def epidemic_influence_mdp(max_pop, debug = False) -> nx.MultiDiGraph:
             N = S - 1
             n = min(S - 1, I)
             V_prime = V - 1
-            for k in range(S):
+            for k in range(S + 1):
                 prob = hypergeom(M, n, N).pmf(k)
+                if S == 1 and k == 0:
+                    prob = 1
                 S_prime, I_prime = S - 1 - k, I + k
                 if S_prime >= 0 and I_prime <= MAX_POPULATION:
                     transitions[(S_prime, I_prime, V_prime)] = prob
@@ -82,7 +86,6 @@ def epidemic_influence_mdp(max_pop, debug = False) -> nx.MultiDiGraph:
             S, I, V = state
             state_idx = state_index[state]
             transitions = compute_transitions(S, I, V, action)
-
             # Update transition matrix
             for next_state, prob in transitions.items():
                 next_state_idx = state_index[next_state]
@@ -97,6 +100,7 @@ def epidemic_influence_mdp(max_pop, debug = False) -> nx.MultiDiGraph:
     print(transition_matrix.shape)
     print(reward_matrix.shape)
     
+    precision = 6
     mdp = nx.MultiDiGraph()
     mdp.add_nodes_from(state_space)
     for s in state_space:
@@ -106,12 +110,14 @@ def epidemic_influence_mdp(max_pop, debug = False) -> nx.MultiDiGraph:
             if debug:
                 print("--- action", action)
             added_sum = 0
-            sum_probabilities = sum(round(transition_matrix[action_idx,state_index[s],state_index[t]], 2) for t in state_space)
+            sum_probabilities = sum(round(transition_matrix[action_idx,state_index[s],state_index[t]], precision) for t in state_space)
             if sum_probabilities == 0:
                 continue
             for t in state_space:
                 p = transition_matrix[action_idx,state_index[s],state_index[t]]
-                p = round(p, 2) / sum_probabilities
+                if round(p, precision) == 0 and p != 0:
+                    assert False, f'Rounded probability to 0:{p}'
+                p = round(p, precision) / sum_probabilities
                 if debug and p != 0:
                     print("--- --- t", t, ':', p)
                 if p != 0:
@@ -119,15 +125,14 @@ def epidemic_influence_mdp(max_pop, debug = False) -> nx.MultiDiGraph:
                     if debug:
                         print(f'--- --- Added {s} -{action}-> {t} : {p} ({transition_matrix[action_idx,state_index[s],state_index[t]]})')
                     added_sum += p
-            assert round(added_sum, 2) == 1 or added_sum == 0, f'{added_sum}, {transition_matrix[action_idx,state_index[(1,1,0)],state_index[(1,1,0)]]}'
-    
+            assert round(added_sum, precision) == 1 or added_sum == 0, f'{added_sum}, {transition_matrix[action_idx,state_index[(1,1,0)],state_index[(1,1,0)]]}'
     # Define winning state
     # If no one can be infected, game is won
     for V in range(2 * MAX_POPULATION + 1):
-        mdp.add_edge('q0: start', (MAX_POPULATION, MAX_POPULATION, V),  action = f'vaccination_{V}', prob_weight = 1)
+        mdp.add_edge('q0: start', (MAX_POPULATION, 1, V),  action = f'vaccination_{V}', prob_weight = 1)
         mdp.add_edge((0,0,V), 'positive',  action = 'won', prob_weight = 1)
-        for I in range(MAX_POPULATION + 1):
-            mdp.add_edge((I,0,V), 'positive',  action = 'won', prob_weight = 1)
+        # for I in range(MAX_POPULATION + 1):
+            # mdp.add_edge((I,0,V), 'positive',  action = 'won', prob_weight = 1)
             
     return mdp
 
