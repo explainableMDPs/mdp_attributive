@@ -245,8 +245,12 @@ def importance_state(model, via_state, name) -> GurobiResult:
     df_lp.insert(3, 'encoding', ['linear'])
     
     # check for 0.0011 as 0.001 is precision, but is periodic (thus represented as 0.0010...01) -> compare against 0.0011
-    assert (abs(df_lp['lower_importance_value'].iloc[0] - df_qp['lower_importance_value'].iloc[0]) <= 0.0011).all(), f'Error for "{name}" with via_state "{via_state}" (lower): {df_lp['lower_importance_value'].iloc[0]} != {df_qp['lower_importance_value'].iloc[0]}'
-    assert (abs(df_lp['upper_importance_value'].iloc[0] - df_qp['upper_importance_value'].iloc[0]) <= 0.0011).all(), f'Error for "{name}" with via_state "{via_state}" (upper): {str(df_lp['upper_importance_value'].iloc[0])} != {df_qp['upper_importance_value'].iloc[0]}'
+    vl = df_lp['lower_importance_value'].iloc[0]
+    vq = df_qp['lower_importance_value'].iloc[0]
+    assert (abs(df_lp['lower_importance_value'].iloc[0] - df_qp['lower_importance_value'].iloc[0]) <= 0.0011).all(), f'Error for "{name}" with via_state "{via_state}" (lower): {vl} != {vq}'
+    vl = df_lp['upper_importance_value'].iloc[0]
+    vq = df_qp['upper_importance_value'].iloc[0]
+    assert (abs(df_lp['upper_importance_value'].iloc[0] - df_qp['upper_importance_value'].iloc[0]) <= 0.0011).all(), f'Error for "{name}" with via_state "{via_state}" (upper): {vl} != {vq}'
     df_merged = pd.concat([df_qp, df_lp], ignore_index=True, sort=False)
 
     return df_merged
