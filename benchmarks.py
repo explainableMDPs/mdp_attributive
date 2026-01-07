@@ -17,7 +17,7 @@ random.seed(seed)
 
 from Result import PrismResult, GurobiResult
 from PrismParser import PrismParser, StormParser
-from solver import QuadraticProblem, LinearEncoding
+from solver import QuadraticEncoding, LinearEncoding
 
 import pyrootutils
 path = pyrootutils.find_root(search_from=__file__, indicator=".project-root")
@@ -230,7 +230,7 @@ def follow_path(model, path, name=""):
 def importance_state(model, via_state, name) -> GurobiResult:
     target_state = [s for s in model if 'positive' in s]
     assert len(target_state) == 1
-    qp = QuadraticProblem(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True)
+    qp = QuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True)
     df_qp = qp.solve_lower_upper().df()
     df_qp.insert(0, 'name', [name])
     df_qp.insert(1, 'states', [str(len(model.nodes))])
@@ -258,7 +258,7 @@ def manual_execution():
         model = pickle.load(handle)
     target_state = [s for s in model if 'positive' in s]
     assert len(target_state) == 1
-    qp = QuadraticProblem(model, 'q0: start', 'q0: start', target_state[0], debug=True)
+    qp = QuadraticEncoding(model, 'q0: start', 'q0: start', target_state[0], debug=True)
     qp.solve()
     
     with open('out/paths/model_greps_model-it_0_random_paths.txt', 'rb') as f:

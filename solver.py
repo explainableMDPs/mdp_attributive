@@ -436,7 +436,7 @@ class LinearEncoding(RelevanceEncoding):
         else:
             self.m.setObjective(-self.goal_var)
         
-class QuadraticProblem(RelevanceEncoding):
+class QuadraticEncoding(RelevanceEncoding):
     def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state : str, target_state : str, timeout = 10*60*60, threads = 1, debug = False, memory=4, precision = 1e-4):  
         super().__init__(model, start_state, via_state, target_state, timeout=timeout, threads=threads, debug=debug, memory=memory, precision=precision)
 
@@ -507,7 +507,7 @@ def gridworld_experiment():
     plt.cla()
     
     # unrolled = unroll(add_self_loops(mdp), 's00', 's66')
-    qp = QuadraticProblem(mdp, 's00False', 's11True', 's66True', debug=True)
+    qp = QuadraticEncoding(mdp, 's00False', 's11True', 's66True', debug=True)
     r = qp.solve_lower_upper().df()
     print(r)
     # assert False
@@ -600,7 +600,7 @@ def loop_example():
     
     get_fixed_reachabilities(mdp, 'a', 'b', 'c', debug=True)
     
-    qp = QuadraticProblem(mdp, 'a', 'b', 'c', debug=True)
+    qp = QuadraticEncoding(mdp, 'a', 'b', 'c', debug=True)
     r = qp.solve_lower_upper().df()
     print(r)
     assert (r['lower_reachability_value'] == r['upper_reachability_value']).all()
@@ -614,7 +614,7 @@ def loop_example_half():
     mdp = loop_half_mdp()
     
     get_fixed_reachabilities(mdp, 'a', 'b', 'pos', debug=True)
-    
+
     lp = LinearEncoding(mdp, 'a', 'b', 'pos', debug=True)
     r = lp.solve_lower_upper().df()
     print(r)
@@ -627,8 +627,8 @@ def loop_example_half():
 def paper_example():
     mdp = paper_example_mdp()
 
-    qp = QuadraticProblem(mdp, 'q0: start_customer', 'consultation_customer', 'positive', debug=True)
-    # qp = QuadraticProblem(mdp, 'q0: start_customer', 'angry', 'positive', debug=True)
+    qp = QuadraticEncoding(mdp, 'q0: start_customer', 'consultation_customer', 'positive', debug=True)
+    # qp = QuadraticEncoding(mdp, 'q0: start_customer', 'angry', 'positive', debug=True)
     
     r = qp.solve_lower_upper().df()
     print(r)
@@ -654,7 +654,7 @@ def epidemic_influence_example():
     for s in nx.descendants(mdp, s0):
         if s[0] != max_pop or s[1] != max_pop:
             continue
-        qp = QuadraticProblem(mdp, s0, s, 'positive', debug=True)
+        qp = QuadraticEncoding(mdp, s0, s, 'positive', debug=True)
         r = qp.solve_lower_upper().df()
         df_results = pd.concat([df_results, r])
     df_results.to_csv("out/results.csv")
@@ -665,7 +665,7 @@ def epidemic_influence_example():
         write_dot(unroll(mdp, s, (max_pop, max_pop, 2*max_pop)), 'out/vacc_unrolled.dot')
         assert False
         
-        qp = QuadraticProblem(mdp, (max_pop,0, 2*max_pop), s, 'pos', debug=True)
+        qp = QuadraticEncoding(mdp, (max_pop,0, 2*max_pop), s, 'pos', debug=True)
         r = qp.solve_lower_upper().df()
         print(r)
     assert False
@@ -714,7 +714,7 @@ if __name__ == '__main__':
     # get_fixed_reachabilities(mdp, start_state[0], 'q50: companyO_CANCELLED', target_state[0], debug=True)
     qp = LinearEncoding(mdp, start_state[0], 'q39: W_CallafteroffersLONG', target_state[0], debug=True)
     df_qp = qp.solve_lower_upper().df()
-    lp = QuadraticProblem(mdp, start_state[0], 'q39: W_CallafteroffersLONG', target_state[0], debug=True)
+    lp = QuadraticEncoding(mdp, start_state[0], 'q39: W_CallafteroffersLONG', target_state[0], debug=True)
     df_lp = lp.solve_lower_upper().df()
     
     # print(df_qp)
@@ -729,7 +729,7 @@ if __name__ == '__main__':
     for e in unrolled.edges:
         print(e, unrolled.edges[e])
     
-    qp = QuadraticProblem(mdp, 's0', 's2', 'st', debug=True)
+    qp = QuadraticEncoding(mdp, 's0', 's2', 'st', debug=True)
     print(qp.solve_lower_upper().df())
 
 
