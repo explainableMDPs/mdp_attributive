@@ -2,9 +2,8 @@ import numpy as np
 import networkx as nx
 from scipy.stats import hypergeom
 
-MAX_POPULATION = 3
 
-def epidemic_influence_mdp(debug = False) -> nx.MultiDiGraph:
+def epidemic_influence_mdp(max_pop, debug = False) -> nx.MultiDiGraph:
     """Function to generate epidemic influence MDP from 
         https://github.com/ddv-lab/counterfactual-influence-in-MDPs/blob/main/experiments/epidemic_influence_experiments.ipynb
         Note that normalization on the transition probabilities was added.
@@ -13,7 +12,11 @@ def epidemic_influence_mdp(debug = False) -> nx.MultiDiGraph:
         MDP : nx.MultiDiGraph
     """
     # Constants
+    MAX_POPULATION = max_pop
 
+    # S: Susceptible to the disease
+    # I: Infected
+    # V: Vaccines available
     state_space = [(S, I, V) for S in range(MAX_POPULATION + 1)
                             for I in range(MAX_POPULATION + 1)
                             for V in range(2 * MAX_POPULATION + 1)]
@@ -90,9 +93,9 @@ def epidemic_influence_mdp(debug = False) -> nx.MultiDiGraph:
 
     transition_matrix = np.nan_to_num(transition_matrix)
     # Output the size of the matrices for verification
-    if debug:
-        print(transition_matrix.shape)
-        print(reward_matrix.shape)
+    print("MDP size:")
+    print(transition_matrix.shape)
+    print(reward_matrix.shape)
     
     mdp = nx.MultiDiGraph()
     mdp.add_nodes_from(state_space)
@@ -117,7 +120,15 @@ def epidemic_influence_mdp(debug = False) -> nx.MultiDiGraph:
                         print(f'--- --- Added {s} -{action}-> {t} : {p} ({transition_matrix[action_idx,state_index[s],state_index[t]]})')
                     added_sum += p
             assert round(added_sum, 2) == 1 or added_sum == 0, f'{added_sum}, {transition_matrix[action_idx,state_index[(1,1,0)],state_index[(1,1,0)]]}'
-                    
+    
+    # Define winning state
+    # If no one can be infected, game is won
+    for V in range(2 * MAX_POPULATION + 1):
+        mdp.add_edge('q0: start', (MAX_POPULATION, MAX_POPULATION, V),  action = f'vaccination_{V}', prob_weight = 1)
+        mdp.add_edge((0,0,V), 'positive',  action = 'won', prob_weight = 1)
+        for I in range(MAX_POPULATION + 1):
+            mdp.add_edge((I,0,V), 'positive',  action = 'won', prob_weight = 1)
+            
     return mdp
 
 def gridworld_mdp():
@@ -147,8 +158,37 @@ def gridworld_mdp():
     
     return mdp
 
+def gridworld_mdp_with_key():
+    mdp = nx.MultiDiGraph()
+    nodes = [f's{i}{j}{key}' for i in range(0, 7) for j in range(0, 7) for key in [True, False]]
+    transitions_r = [(f's{i}{j}{key}', f's{min(i+1, 6)}{j}{key}') for i in [0, 1, 2, 4, 5, 6] for j in range(0,7) if i+1 <= 6 for key in [True, False]]
+    transitions_l = [(f's{i}{j}{key}', f's{max(i-1, 0)}{j}{key}') for i in [0, 1, 2, 4, 5, 6] for j in range(0,7) if i-1 >= 0 for key in [True, False]]
+    transitions_u = [(f's{i}{j}{key}', f's{i}{min(j+1, 6)}{key}') for i in [0, 1, 2, 4, 5, 6] for j in range(0,7) if j+1 <= 6 for key in [True, False]]
+    transitions_d = [(f's{i}{j}{key}', f's{i}{max(j-1, 0)}{key}') for i in [0, 1, 2, 4, 5, 6] for j in range(0,7) if j-1 >= 0 for key in [True, False]]
+    transitions_caught = [(f's{i}{j}',f's{i}{j}') for i in [3] for j in [0, 1, 2, 4, 5, 6]]
+    # encode (3,3) position
+    transitions_3r = [(f's{i}{j}{key}', f's{min(i+1, 6)}{j}{key}') for i in [3] for j in [3] for key in [True, False]]
+    transitions_3l = [(f's{i}{j}{key}', f's{max(i-1, 0)}{j}{key}') for i in [3] for j in [3] for key in [True, False]]
+    transitions_3d = [(f's{i}{j}{key}', f's{i}{min(j+1, 6)}{key}') for i in [3] for j in [3] for key in [True, False]]
+    transitions_3u = [(f's{i}{j}{key}', f's{i}{max(j-1, 0)}{key}') for i in [3] for j in [3] for key in [True, False]]
+    
+    mdp.add_nodes_from(nodes)
+    mdp.add_edges_from(transitions_r, action = 'r', prob_weight=1)
+    mdp.add_edges_from(transitions_l, action = 'l', prob_weight=1)
+    mdp.add_edges_from(transitions_d, action = 'd', prob_weight=1)
+    mdp.add_edges_from(transitions_u, action = 'u', prob_weight=1)
+    # mdp.add_edges_from(transitions_caught, action= 'c',  prob_weight=1)
+    mdp.add_edges_from(transitions_3r, action = 'r', prob_weight=1)
+    mdp.add_edges_from(transitions_3l, action = 'l', prob_weight=1)
+    mdp.add_edges_from(transitions_3d, action = 'd', prob_weight=1)
+    mdp.add_edges_from(transitions_3u, action = 'u', prob_weight=1)
+    
+    mdp.add_edge('s00False', 's00True', action='pickup', prob_weight=1)
+    mdp.remove_edge('s23False', 's33False') # no transition without key
+    return mdp
+
 def loop_mdp():
-    # a - b - c
+    # d <- a (<-> b) -> c
     mdp = nx.MultiDiGraph()
     mdp.add_edge('a', 'b', action = 'to_b', prob_weight = 1)
     mdp.add_edge('a', 'd', action = 'to_d', prob_weight = 1)
