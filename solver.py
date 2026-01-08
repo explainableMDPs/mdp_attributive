@@ -192,9 +192,9 @@ class RelevanceEncoding(ABC):
         self.p_s_f = {s : self.m.addVar(ub=1.0, name=f'p_{str(s)}->f', lb = 0.0) for s in self.model.nodes}
         self.p_sa = {}
         
-        self.tau_s = {s : self.m.addVar(name=f'tau_{str(s)}', lb = 1.0, ub = 100*len(self.model.nodes)) for s in self.model.nodes}
-        self.epsilon = self.m.addVar(ub=1.0, name=f'epsilon')
-        self.m.addConstr(self.epsilon == 0.000000001)
+        self.tau_s = {s : self.m.addVar(name=f'tau_{str(s)}', lb = 1.0) for s in self.model.nodes}
+        # self.epsilon = self.m.addVar(ub=1.0, name=f'epsilon')
+        # self.m.addConstr(self.epsilon == 0.000000001)
     
         if (self.target_state, 'f') not in self.model.nodes:
             print('###### No negative contained ######')
@@ -347,9 +347,10 @@ class RelevanceEncoding(ABC):
         assert return_result_lower.via_state == return_result_upper.via_state
         assert return_result_lower.target_state == return_result_upper.target_state
         assert return_result_lower.timeout == return_result_upper.timeout
-        assert return_result_lower.status == return_result_upper.status
+        # assert return_result_lower.status == return_result_upper.status
         assert abs(return_result_lower.reachability_value - return_result_upper.reachability_value) <= 1e-3, f'{return_result_lower.reachability_value} - {return_result_upper.reachability_value} = {abs(return_result_lower.reachability_value - return_result_upper.reachability_value)}'
         assert return_result_lower.importance_value <= return_result_upper.importance_value, f'{return_result_lower.importance_value} !<= {return_result_upper.importance_value}'
+        status = GRB.OPTIMAL if return_result_lower.status == GRB.OPTIMAL and return_result_upper.status == GRB.OPTIMAL else max(return_result_lower.status, return_result_upper.status)
         
         result_lower_upper = GurobiResultLowerUpper(return_result_lower.time + return_result_upper.time, return_result_lower.reachability_value, return_result_lower.importance_value, 
                                                     return_result_upper.reachability_value, return_result_upper.importance_value, 
