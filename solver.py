@@ -321,7 +321,7 @@ class RelevanceEncoding(ABC):
                     if v.IISLB: print(f'\t{v.varname} ≥ {v.LB}')
                     if v.IISUB: print(f'\t{v.varname} ≤ {v.UB}')
     
-            assert False, f'Infeasible for "{self.via_state}"'
+                assert False, f'Infeasible for "{self.via_state}"'
             self.m.dispose()
             return return_result
         
@@ -639,15 +639,15 @@ def paper_example():
     return r
 
 def epidemic_influence_example():
-    max_pop = 9
-    mdp = epidemic_influence_mdp(max_pop, debug=False)
+    max_pop = 4
+    mdp = epidemic_influence_mdp(max_pop, debug=True)
     # TODO look at reachable MDP from (max_pop, 0, 2*max_pop)
     # TODO plot MDP with dot layout
     # TODO analyze importance of starting states? - e.g. start with V vaccinations in setting if (P,I) - can choose vaccinations arbitrarily
     import matplotlib.pyplot as plt
     import networkx.drawing.nx_pydot as nx_pydot
     from networkx.drawing.nx_pydot import write_dot
-    write_dot(mdp, 'out/vacc.dot')
+    write_dot(mdp, f'out/vacc_{max_pop}.dot')
     import pandas as pd 
     df_results = pd.DataFrame()
     s0 = 'q0: start'
@@ -676,8 +676,8 @@ if __name__ == '__main__':
     # assert False
     # loop_example()
     # assert False
-    gridworld_experiment()
-    assert False
+    # gridworld_experiment()
+    # assert False
     # G = nx.MultiDiGraph()
     # G.add_edges_from([('0','1'),('1', '3',), ('0', '2'), ('2', '3')])
     # print(G)
@@ -703,7 +703,7 @@ if __name__ == '__main__':
     # print('prior', [(e, mdp.edges[e]) for e in mdp.edges])
     
     import pickle
-    with open('out/models/model_bpic17-after_model-it_0.pickle', 'rb') as handle: #open(f'out/models/model_{name}.pickle', 'rb') as handle:
+    with open('out/models/model_bpic17-both_model-it_0.pickle', 'rb') as handle: #open(f'out/models/model_{name}.pickle', 'rb') as handle:
         mdp = pickle.load(handle)
     # nx.drawing.nx_pydot.write_dot(mdp, "out/bpic12.dot")
     # get_reachability_all_states(mdp, 'out/exportvector.txt', 'out/out.lab')
@@ -712,15 +712,15 @@ if __name__ == '__main__':
     assert len(target_state) == 1
     assert len(start_state) == 1
     # get_fixed_reachabilities(mdp, start_state[0], 'q50: companyO_CANCELLED', target_state[0], debug=True)
-    qp = LinearEncoding(mdp, start_state[0], 'q39: W_CallafteroffersLONG', target_state[0], debug=True)
-    df_qp = qp.solve_lower_upper().df()
-    lp = QuadraticEncoding(mdp, start_state[0], 'q39: W_CallafteroffersLONG', target_state[0], debug=True)
+    lp = LinearEncoding(mdp, start_state[0], 'q53: companyA_Validating', target_state[0], debug=True)
     df_lp = lp.solve_lower_upper().df()
+    qp = QuadraticEncoding(mdp, start_state[0], 'q53: companyA_Validating', target_state[0], debug=True)
+    df_qp = qp.solve_lower_upper().df()
+
+    print(df_lp)    
+    print(df_qp)
     
-    # print(df_qp)
-    # print(df_lp)
-    
-    # print(abs(df_lp['lower_importance_value'].iloc[0] - df_qp['lower_importance_value'].iloc[0]))
+    print(abs(df_lp['lower_importance_value'].iloc[0] - df_qp['lower_importance_value'].iloc[0]))
     
     assert False
     
