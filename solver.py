@@ -322,7 +322,7 @@ class RelevanceEncoding(ABC):
                     if v.IISUB: print(f'\t{v.varname} ≤ {v.UB}')
     
                 assert False, f'Infeasible for "{self.via_state}"'
-            self.m.dispose()
+            # self.m.dispose()
             return return_result
         
         assert self.m.status == GRB.OPTIMAL, f'Status is {self.m.status}'
