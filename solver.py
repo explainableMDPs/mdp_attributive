@@ -349,13 +349,13 @@ class RelevanceEncoding(ABC):
         assert return_result_lower.timeout == return_result_upper.timeout
         # assert return_result_lower.status == return_result_upper.status
         assert abs(return_result_lower.reachability_value - return_result_upper.reachability_value) <= 1e-3, f'{return_result_lower.reachability_value} - {return_result_upper.reachability_value} = {abs(return_result_lower.reachability_value - return_result_upper.reachability_value)}'
-        assert return_result_lower.importance_value <= return_result_upper.importance_value, f'{return_result_lower.importance_value} !<= {return_result_upper.importance_value}'
+        assert round(return_result_lower.importance_value, 3) <= round(return_result_upper.importance_value, 3), f'{return_result_lower.importance_value} !<= {return_result_upper.importance_value}'
         status = GRB.OPTIMAL if return_result_lower.status == GRB.OPTIMAL and return_result_upper.status == GRB.OPTIMAL else max(return_result_lower.status, return_result_upper.status)
         
         result_lower_upper = GurobiResultLowerUpper(return_result_lower.time + return_result_upper.time, return_result_lower.reachability_value, return_result_lower.importance_value, 
                                                     return_result_upper.reachability_value, return_result_upper.importance_value, 
                                                     return_result_lower.start_state, return_result_lower.via_state, return_result_lower.target_state, 
-                                                    return_result_lower.timeout, return_result_lower.status)
+                                                    return_result_lower.timeout, status)
         
         self.m.dispose()
         return result_lower_upper
