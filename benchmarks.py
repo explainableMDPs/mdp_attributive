@@ -230,14 +230,14 @@ def follow_path(model, path, name=""):
 def importance_state(model, via_state, name) -> GurobiResult:
     target_state = [s for s in model if 'positive' in s]
     assert len(target_state) == 1
-    qp = QuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True)
+    qp = QuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
     df_qp = qp.solve_lower_upper().df()
     df_qp.insert(0, 'name', [name])
     df_qp.insert(1, 'states', [str(len(model.nodes))])
     df_qp.insert(2, 'transitions', [str(len(model.edges))])
     df_qp.insert(3, 'encoding', ['quadratic'])
     
-    lp = LinearEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True)
+    lp = LinearEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
     df_lp = lp.solve_lower_upper().df()
     df_lp.insert(0, 'name', [name])
     df_lp.insert(1, 'states', [str(len(model.nodes))])
