@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from Result import GurobiResult, GurobiResultLowerUpper
 from fixed_mdp import *
 
-M = 1e18
+M = 1e20
 
 def unroll(model : nx.MultiDiGraph, via_state : str, start_state = None) -> nx.MultiDiGraph:
     """Function to unroll model around via_state and, if start_state is given, prune all states that can not be reached from start_state.
@@ -192,7 +192,7 @@ class RelevanceEncoding(ABC):
         self.p_s_f = {s : self.m.addVar(ub=1.0, name=f'p_{str(s)}->f', lb = 0.0) for s in self.model.nodes}
         self.p_sa = {}
         
-        self.tau_s = {s : self.m.addVar(name=f'tau_{str(s)}', lb = 1.0) for s in self.model.nodes}
+        self.tau_s = {s : self.m.addVar(name=f'tau_{str(s)}', lb = 0.0) for s in self.model.nodes}
         # self.epsilon = self.m.addVar(ub=1.0, name=f'epsilon')
         # self.m.addConstr(self.epsilon == 0.000000001)
     
