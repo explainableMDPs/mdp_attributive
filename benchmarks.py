@@ -235,23 +235,25 @@ def importance_state(model, via_state, name) -> GurobiResult:
     df_qp.insert(0, 'name', [name])
     df_qp.insert(1, 'states', [str(len(model.nodes))])
     df_qp.insert(2, 'transitions', [str(len(model.edges))])
-    df_qp.insert(3, 'encoding', ['quadratic'])
+    df_qp.insert(3, 'encoding', ['QP'])
     
     lp = LinearEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
     df_lp = lp.solve_lower_upper().df()
     df_lp.insert(0, 'name', [name])
     df_lp.insert(1, 'states', [str(len(model.nodes))])
     df_lp.insert(2, 'transitions', [str(len(model.edges))])
-    df_lp.insert(3, 'encoding', ['linear'])
+    df_lp.insert(3, 'encoding', ['LP'])
     
-    if (df_lp['status'] == df_qp['status']).all() and False:
-        # check for 0.0011 as 0.001 is precision, but is periodic (thus represented as 0.0010...01) -> compare against 0.0011
-        vl = df_lp['lower_importance_value'].iloc[0]
-        vq = df_qp['lower_importance_value'].iloc[0]
-        assert (abs(df_lp['lower_importance_value'].iloc[0] - df_qp['lower_importance_value'].iloc[0]) <= 0.0011).all(), f'Error for "{name}" with via_state "{via_state}" (lower): {vl} != {vq}'
-        vl = df_lp['upper_importance_value'].iloc[0]
-        vq = df_qp['upper_importance_value'].iloc[0]
-        assert (abs(df_lp['upper_importance_value'].iloc[0] - df_qp['upper_importance_value'].iloc[0]) <= 0.0011).all(), f'Error for "{name}" with via_state "{via_state}" (upper): {vl} != {vq}'
+    # return df_lp
+
+    # if (df_lp['status'] == df_qp['status']).all() and False:
+    #     # check for 0.0011 as 0.001 is precision, but is periodic (thus represented as 0.0010...01) -> compare against 0.0011
+    #     vl = df_lp['lower_importance_value'].iloc[0]
+    #     vq = df_qp['lower_importance_value'].iloc[0]
+    #     assert (abs(df_lp['lower_importance_value'].iloc[0] - df_qp['lower_importance_value'].iloc[0]) <= 0.0011).all(), f'Error for "{name}" with via_state "{via_state}" (lower): {vl} != {vq}'
+    #     vl = df_lp['upper_importance_value'].iloc[0]
+    #     vq = df_qp['upper_importance_value'].iloc[0]
+    #     assert (abs(df_lp['upper_importance_value'].iloc[0] - df_qp['upper_importance_value'].iloc[0]) <= 0.0011).all(), f'Error for "{name}" with via_state "{via_state}" (upper): {vl} != {vq}'
     df_merged = pd.concat([df_qp, df_lp], ignore_index=True, sort=False)
 
     return df_merged
