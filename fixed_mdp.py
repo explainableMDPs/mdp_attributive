@@ -100,7 +100,7 @@ def epidemic_influence_mdp(max_pop, debug = False) -> nx.MultiDiGraph:
     print(transition_matrix.shape)
     print(reward_matrix.shape)
     
-    precision = 6
+    precision = 10
     mdp = nx.MultiDiGraph()
     mdp.add_nodes_from(state_space)
     for s in state_space:
