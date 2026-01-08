@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from Result import GurobiResult, GurobiResultLowerUpper
 from fixed_mdp import *
 
-M = 1e25
+M = 1e16
 
 def unroll(model : nx.MultiDiGraph, via_state : str, start_state = None) -> nx.MultiDiGraph:
     """Function to unroll model around via_state and, if start_state is given, prune all states that can not be reached from start_state.
@@ -295,9 +295,9 @@ class RelevanceEncoding(ABC):
                 return GurobiResult(time=self.m.Runtime, reachability_value=0, importance_value=0, start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
             else:
                 max_result = self.get_max_solution(op)
-                return GurobiResult(time=self.m.Runtime, reachability_value=round(max_result[0], 3), importance_value=round(max_result[1]/max_result[0], 3), start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
+                return GurobiResult(time=self.m.Runtime, reachability_value=max_result[0], importance_value=max_result[1]/max_result[0], start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
         max_result = self.get_max_solution(op) 
-        return GurobiResult(time=self.m.Runtime, reachability_value=round(max_result[0], 3), importance_value=round(max_result[1]/max_result[0], 3), start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
+        return GurobiResult(time=self.m.Runtime, reachability_value=max_result[0], importance_value=max_result[1]/max_result[0], start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
 
     def solve_helper(self, sense=GRB.MAXIMIZE):
         self.set_target(sense)
