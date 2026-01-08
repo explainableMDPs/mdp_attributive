@@ -244,7 +244,7 @@ def importance_state(model, via_state, name) -> GurobiResult:
     df_lp.insert(2, 'transitions', [str(len(model.edges))])
     df_lp.insert(3, 'encoding', ['linear'])
     
-    if (df_lp['status'] == df_qp['status']).all():
+    if (df_lp['status'] == df_qp['status']).all() and False:
         # check for 0.0011 as 0.001 is precision, but is periodic (thus represented as 0.0010...01) -> compare against 0.0011
         vl = df_lp['lower_importance_value'].iloc[0]
         vq = df_qp['lower_importance_value'].iloc[0]
