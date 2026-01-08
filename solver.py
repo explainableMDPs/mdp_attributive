@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from Result import GurobiResult, GurobiResultLowerUpper
 from fixed_mdp import *
 
-M = 1e20
+M = 1e16
 
 def unroll(model : nx.MultiDiGraph, via_state : str, start_state = None) -> nx.MultiDiGraph:
     """Function to unroll model around via_state and, if start_state is given, prune all states that can not be reached from start_state.
@@ -192,7 +192,7 @@ class RelevanceEncoding(ABC):
         self.p_s_f = {s : self.m.addVar(ub=1.0, name=f'p_{str(s)}->f', lb = 0.0) for s in self.model.nodes}
         self.p_sa = {}
         
-        self.tau_s = {s : self.m.addVar(name=f'tau_{str(s)}', lb = 0.0, ub = M/2) for s in self.model.nodes}
+        self.tau_s = {s : self.m.addVar(name=f'tau_{str(s)}', lb = 1.0, ub = 100*len(self.model.nodes)) for s in self.model.nodes}
         self.epsilon = self.m.addVar(ub=1.0, name=f'epsilon')
         self.m.addConstr(self.epsilon == 0.000000001)
     
@@ -464,10 +464,10 @@ class QuadraticEncoding(RelevanceEncoding):
                 self.m.addConstr(self.p_s_t[s] == sum([self.p_sa[s][self.model.edges[e]['action']] * float(self.model.edges[e]['prob_weight']) * self.p_s_t[e[1]] for e in list(self.model.edges(s, keys=True))]))
                 self.m.addConstr(self.p_s_f[s] == sum([self.p_sa[s][self.model.edges[e]['action']] * float(self.model.edges[e]['prob_weight']) * self.p_s_f[e[1]] for e in list(self.model.edges(s, keys=True))]))
                 # Encode paths
-                # for a in enabled_actions:
-                    # self.m.addConstr(self.p_s_t[s] + self.p_s_f[s] >= sum([float(self.model.edges[e]['prob_weight']) * (self.p_s_t[e[1]] + self.p_s_f[e[1]]) for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a]))
-                if s != self.target_state:
-                    self.m.addConstr(self.tau_s[s] + 1 <= sum([self.p_sa[s][self.model.edges[e]['action']] * self.tau_s[e[1]] * float(self.model.edges[e]['prob_weight']) for e in list(self.model.edges(s, keys=True))] ))
+                for a in enabled_actions:
+                    self.m.addConstr(self.p_s_t[s] + self.p_s_f[s] >= sum([float(self.model.edges[e]['prob_weight']) * (self.p_s_t[e[1]] + self.p_s_f[e[1]]) for e in list(self.model.edges(s, keys=True)) if self.model.edges[e]['action'] == a]))
+                # if s != self.target_state:
+                    # self.m.addConstr(self.tau_s[s] + 1 <= sum([self.p_sa[s][self.model.edges[e]['action']] * self.tau_s[e[1]] * float(self.model.edges[e]['prob_weight']) for e in list(self.model.edges(s, keys=True))] ))
             else:
                 if self.target_state not in s[0]:
                     # Not reachable states are still in strategy - exclude other target states
