@@ -230,7 +230,6 @@ class SpotifyParser(LogParser):
     
 class EpidemicParser(LogParser):
     # Does not need to parse anything
-    max_population = 0
     def __init__(self, max_population):
         self.max_population = max_population
         
