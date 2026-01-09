@@ -167,10 +167,6 @@ def get_fixed_reachabilities(model : nx.MultiDiGraph, start_state : str, via_sta
 
 class RelevanceEncoding(ABC):
     def __init__(self , model : nx.MultiDiGraph, start_state : str, via_state : str, target_state : str, timeout = 10*60*60, threads = 1, debug = False, memory=4, precision = 1e-5):  
-        # compute reachabilities
-        # TODO Check if even useful
-        self.fixed_reachabilities_return = get_fixed_reachabilities(model=model, start_state=start_state, via_state=via_state, target_state=target_state, timeout=timeout, threads=threads, debug=debug, memory=memory)
-
         self.env = gp.Env()
         self.m = gp.Model("qp", env=self.env)
         self.m.setParam('TimeLimit', timeout)
@@ -193,8 +189,6 @@ class RelevanceEncoding(ABC):
         self.p_sa = {}
         
         self.tau_s = {s : self.m.addVar(name=f'tau_{str(s)}', lb = 0.0) for s in self.model.nodes}
-        # self.epsilon = self.m.addVar(ub=1.0, name=f'epsilon')
-        # self.m.addConstr(self.epsilon == 0.000000001)
     
         if (self.target_state, 'f') not in self.model.nodes:
             print('###### No negative contained ######')
@@ -228,23 +222,9 @@ class RelevanceEncoding(ABC):
         # default values
         
         self.encode_actions()
-        # TODO check if fixed reachabilities improve performance
-        # for e in self.fixed_reachabilities_return.fixed_reachabilities:
-        #     self.m.addConstr(self.p_sa[e[0]][e[1]] == self.fixed_reachabilities_return.fixed_reachabilities[e])
-        #     if self.debug:
-        #         print(f'From pre-processing, added {self.p_sa[e[0]][e[1]].VarName} = {self.fixed_reachabilities_return.fixed_reachabilities[e]} to model')
-
-
+        
         self.encode_model()
-        
-        self.goal_var = self.m.addVar(ub=1.0, name='goal variable', lb = 0)
-        self.m.addConstr(self.goal_var == self.p_s_t[(self.start_state, 'f')]) # *(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')])
-        
-        # TODO Update to encode reachability direct
-        # self.m.addConstr(self.goal_var == self.p_s_t[(self.start_state, 'f')])
-        # IMPORTANT: Only needed when not working on optimized transitions. Then, every strategy maximizes reachability probability
-        self.m.addConstr(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')] == self.fixed_reachabilities_return.reachability)
-        
+                
 
     def get_max_solution(self, op, precision=3):
         if self.debug:
@@ -284,20 +264,6 @@ class RelevanceEncoding(ABC):
         
         return (reachability_scores[0], op(relevance_scores))
         return (reachability_scores[op_relevance_score[0]], relevance_scores[op_relevance_score[0]])
-        
-    def get_solution(self, op):
-        if self.m.status == GRB.INFEASIBLE:
-            return GurobiResult(time=self.m.Runtime, reachability_value=-0.2, importance_value=-0.2, start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
-        
-        # compute result as in diverse target function include determinant
-        if self.m.status == GRB.TIME_LIMIT:
-            if self.m.SolCount == 0:
-                return GurobiResult(time=self.m.Runtime, reachability_value=0, importance_value=0, start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
-            else:
-                max_result = self.get_max_solution(op)
-                return GurobiResult(time=self.m.Runtime, reachability_value=max_result[0], importance_value=max_result[1]/max_result[0], start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
-        max_result = self.get_max_solution(op) 
-        return GurobiResult(time=self.m.Runtime, reachability_value=max_result[0], importance_value=max_result[1]/max_result[0], start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
 
     def solve_helper(self, sense=GRB.MAXIMIZE):
         self.set_target(sense)
@@ -308,9 +274,8 @@ class RelevanceEncoding(ABC):
         self.m.update()
         
         self.m.optimize()
-        
         return_result = self.get_solution(max if sense == GRB.MAXIMIZE else min)
-        if self.m.status == GRB.INFEASIBLE or self.m.status == GRB.TIME_LIMIT:
+        if self.m.status == GRB.INFEASIBLE or self.m.status == GRB.TIME_LIMIT or self.m.status == GRB.MEM_LIMIT:
             if self.m.Status == GRB.INFEASIBLE:
                 self.m.computeIIS()
                 print('\nThe following constraints and variables are in the IIS:')
@@ -347,7 +312,6 @@ class RelevanceEncoding(ABC):
         assert return_result_lower.target_state == return_result_upper.target_state
         assert return_result_lower.timeout == return_result_upper.timeout
         # assert return_result_lower.status == return_result_upper.status
-        assert abs(return_result_lower.reachability_value - return_result_upper.reachability_value) <= 1e-3, f'{return_result_lower.reachability_value} - {return_result_upper.reachability_value} = {abs(return_result_lower.reachability_value - return_result_upper.reachability_value)}'
         assert round(return_result_lower.importance_value, 3) <= round(return_result_upper.importance_value, 3), f'{return_result_lower.importance_value} !<= {return_result_upper.importance_value}'
         status = GRB.OPTIMAL if return_result_lower.status == GRB.OPTIMAL and return_result_upper.status == GRB.OPTIMAL else max(return_result_lower.status, return_result_upper.status)
         
@@ -376,7 +340,57 @@ class RelevanceEncoding(ABC):
     def set_target(self, sense):
         pass
     
-class LinearEncoding(RelevanceEncoding):
+    @abstractmethod
+    def get_solution(self, op):
+        pass
+    
+class OptimalReachabilityRelevanceEncoding(RelevanceEncoding):
+    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state : str, target_state : str, timeout = 10*60*60, threads = 1, debug = False, memory=4, precision = 1e-4): 
+        # compute reachabilities
+        # TODO Check if even useful
+        self.fixed_reachabilities_return = get_fixed_reachabilities(model=model, start_state=start_state, via_state=via_state, target_state=target_state, timeout=timeout, threads=threads, debug=debug, memory=memory)
+        
+        super().__init__(model, start_state, via_state, target_state, timeout=timeout, threads=threads, debug=debug, memory=memory, precision=precision)
+
+        # TODO check if fixed reachabilities improve performance
+        # for e in self.fixed_reachabilities_return.fixed_reachabilities:
+        #     self.m.addConstr(self.p_sa[e[0]][e[1]] == self.fixed_reachabilities_return.fixed_reachabilities[e])
+        #     if self.debug:
+        #         print(f'From pre-processing, added {self.p_sa[e[0]][e[1]].VarName} = {self.fixed_reachabilities_return.fixed_reachabilities[e]} to model')
+
+        self.goal_var = self.m.addVar(ub=1.0, name='goal variable', lb = 0)
+        self.m.addConstr(self.goal_var == self.p_s_t[(self.start_state, 'f')]) # *(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')])
+        
+        # TODO Update to encode reachability direct
+        # self.m.addConstr(self.goal_var == self.p_s_t[(self.start_state, 'f')])
+        # IMPORTANT: Only needed when not working on optimized transitions. Then, every strategy maximizes reachability probability
+        self.m.addConstr(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')] == self.fixed_reachabilities_return.reachability)
+
+    def get_solution(self, op):
+        if self.m.status == GRB.INFEASIBLE:
+            return GurobiResult(time=self.m.Runtime, reachability_value=-0.2, importance_value=-0.2, start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
+        
+        # compute result as in diverse target function include determinant
+        if self.m.status == GRB.TIME_LIMIT or self.m.status == GRB.MEM_LIMIT:
+            if self.m.SolCount == 0:
+                return GurobiResult(time=self.m.Runtime, reachability_value=0, importance_value=0, start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
+            else:
+                max_result = self.get_max_solution(op)
+                return GurobiResult(time=self.m.Runtime, reachability_value=max_result[0], importance_value=max_result[1]/max_result[0], start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
+        max_result = self.get_max_solution(op) 
+        return GurobiResult(time=self.m.Runtime, reachability_value=max_result[0], importance_value=max_result[1]/max_result[0], start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
+    
+    def solve_helper(self, sense=GRB.MAXIMIZE):
+        r = super().solve_helper(sense)
+        assert abs(self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X - self.fixed_reachabilities_return.reachability) <= 0.01, f'Reachability differs by more than 0.01 : {self.p_s_t[(self.start_state, "f")].X + self.p_s_f[(self.start_state, "f")].X} != {self.fixed_reachabilities_return.reachability}'
+        return r
+    
+    def solve_lower_upper(self):
+        r = super().solve_lower_upper()
+        assert abs(r.reachability_value - r.reachability_value) <= 1e-3, f'{r.reachability_value} - {r.reachability_value} = {abs(r.reachability_value - r.reachability_value)}'
+        return r
+    
+class LinearEncoding(OptimalReachabilityRelevanceEncoding):
     def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state : str, target_state : str, timeout = 10*60*60, threads = 1, debug = False, memory=4, precision = 1e-4): 
         super().__init__(model, start_state, via_state, target_state, timeout=timeout, threads=threads, debug=debug, memory=memory, precision=precision)
         
@@ -436,7 +450,7 @@ class LinearEncoding(RelevanceEncoding):
         else:
             self.m.setObjective(-self.goal_var)
         
-class QuadraticEncoding(RelevanceEncoding):
+class QuadraticEncoding(OptimalReachabilityRelevanceEncoding):
     def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state : str, target_state : str, timeout = 10*60*60, threads = 1, debug = False, memory=4, precision = 1e-4):  
         super().__init__(model, start_state, via_state, target_state, timeout=timeout, threads=threads, debug=debug, memory=memory, precision=precision)
 
@@ -489,6 +503,73 @@ class QuadraticEncoding(RelevanceEncoding):
             self.m.setObjectiveN(self.goal_var, index = 1, priority = 0)
         else:
             self.m.setObjectiveN(-self.goal_var, index = 1, priority = 0)
+
+class GeneralQuadraticEncoding(RelevanceEncoding):
+    def __init__(self, model : nx.MultiDiGraph, start_state : str, via_state : str, target_state : str, timeout = 10*60*60, threads = 1, debug = False, memory=4, precision = 1e-4):  
+
+        super().__init__(model, start_state, via_state, target_state, timeout=timeout, threads=threads, debug=debug, memory=memory, precision=precision)
+
+        self.goal_var = self.m.addVar(ub=1.0, name='goal variable', lb = 0.0)
+        self.m.addConstr(self.goal_var*(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')]) == self.p_s_t[(self.start_state, 'f')])
+
+        self.m.addConstr(self.p_s_t[(self.start_state, 'f')] + self.p_s_f[(self.start_state, 'f')] >= precision)
+    
+    def encode_actions(self) -> dict:
+        # encode actions - only for states that can reach the terminal state
+        for s in self.model.nodes: # TODO shorten here to reaching states
+            # Encode pos and neg states as absorbing, i.e. without available actions. Thus, the can not be included in p_sa
+            # print(self.model.edges[list(self.model.out_edges(s))[0]]['action'])
+            enabled_actions = set([self.model.edges[e]['action'] for e in list(self.model.edges(s, keys=True))])
+            print(f'enabled from {s} : {enabled_actions}')
+            assert len(enabled_actions) >= 1, f'State{s} has no enabled action'
+            self.p_sa[s] = {a : self.m.addVar(ub=1.0, name=str(s)+'_'+a, lb = 0) for a in enabled_actions} # vtype=GRB.BINARY
+            self.m.addConstr(sum(list(self.p_sa[s].values())) == 1) # scheduler sums up to one
+            for a in enabled_actions:
+                self.m.addConstr(self.p_sa[s][a] <= 1)
+        # parse fixed reachability values into model
+        self.m.update() # update to parse variable names
+    
+    def encode_model(self):
+        # encode model
+        for s in self.p_sa:
+            enabled_actions = set([self.model[e[0]][e[1]][k]['action'] for e in list(self.model.edges(s)) for k in self.model[s][e[1]]])
+            print("enabled actions", enabled_actions)
+            assert len(enabled_actions) >= 1, f'State{s} has no enabled action'
+            if s in self.reaching_states:
+                self.m.addConstr(self.p_s_t[s] == sum([self.p_sa[s][self.model.edges[e]['action']] * float(self.model.edges[e]['prob_weight']) * self.p_s_t[e[1]] for e in list(self.model.edges(s, keys=True))]))
+                self.m.addConstr(self.p_s_f[s] == sum([self.p_sa[s][self.model.edges[e]['action']] * float(self.model.edges[e]['prob_weight']) * self.p_s_f[e[1]] for e in list(self.model.edges(s, keys=True))]))
+                # Encode paths
+                if enabled_actions != {'self_loop'}:
+                    print("tau constrained", s)
+                    self.m.addConstr(self.tau_s[s] + 1 <= sum([self.p_sa[s][self.model.edges[e]['action']] * self.tau_s[e[1]] * float(self.model.edges[e]['prob_weight']) for e in list(self.model.edges(s, keys=True))] ))
+            else:
+                if self.target_state not in s[0]:
+                    # Not reachable states are still in strategy - exclude other target states
+                    if self.debug:
+                        print(f'Set {s} to 0')
+                    self.m.addConstr(self.p_s_t[s] == 0)
+                    self.m.addConstr(self.p_s_f[s] == 0)
+    
+    def set_target(self, sense):
+        # Idea: Optimize for importance among all optimal strategies, then set remaining variables to 0
+        if sense == GRB.MAXIMIZE:
+            self.m.setObjective(self.goal_var)
+        else:
+            self.m.setObjective(-self.goal_var)
+            
+    def get_solution(self, op):
+        if self.m.status == GRB.INFEASIBLE:
+            return GurobiResult(time=self.m.Runtime, reachability_value=-0.2, importance_value=-0.2, start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
+        
+        # compute result as in diverse target function include determinant
+        if self.m.status == GRB.TIME_LIMIT:
+            if self.m.SolCount == 0:
+                return GurobiResult(time=self.m.Runtime, reachability_value=0, importance_value=0, start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
+            else:
+                max_result = self.get_max_solution(op)
+                return GurobiResult(time=self.m.Runtime, reachability_value=max_result[0], importance_value=max_result[1], start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
+        max_result = self.get_max_solution(op) 
+        return GurobiResult(time=self.m.Runtime, reachability_value=max_result[0], importance_value=max_result[1], start_state=self.start_state, via_state=self.via_state, target_state=self.target_state, timeout=self.timeout, status=self.m.status)
 
 def gridworld_experiment():
     import matplotlib.pyplot as plt

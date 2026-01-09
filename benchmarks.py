@@ -17,7 +17,7 @@ random.seed(seed)
 
 from Result import PrismResult, GurobiResult
 from PrismParser import PrismParser, StormParser
-from solver import QuadraticEncoding, LinearEncoding
+from solver import QuadraticEncoding, LinearEncoding, GeneralQuadraticEncoding
 
 import pyrootutils
 path = pyrootutils.find_root(search_from=__file__, indicator=".project-root")
@@ -244,6 +244,13 @@ def importance_state(model, via_state, name) -> GurobiResult:
     df_lp.insert(2, 'transitions', [str(len(model.edges))])
     df_lp.insert(3, 'encoding', ['LP'])
     
+    gqp = GeneralQuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
+    df_gqp = gqp.solve_lower_upper().df()
+    df_gqp.insert(0, 'name', [name])
+    df_gqp.insert(1, 'states', [str(len(model.nodes))])
+    df_gqp.insert(2, 'transitions', [str(len(model.edges))])
+    df_gqp.insert(3, 'encoding', ['GQP'])
+    
     # return df_lp
 
     # if (df_lp['status'] == df_qp['status']).all() and False:
@@ -254,7 +261,7 @@ def importance_state(model, via_state, name) -> GurobiResult:
     #     vl = df_lp['upper_importance_value'].iloc[0]
     #     vq = df_qp['upper_importance_value'].iloc[0]
     #     assert (abs(df_lp['upper_importance_value'].iloc[0] - df_qp['upper_importance_value'].iloc[0]) <= 0.0011).all(), f'Error for "{name}" with via_state "{via_state}" (upper): {vl} != {vq}'
-    df_merged = pd.concat([df_qp, df_lp], ignore_index=True, sort=False)
+    df_merged = pd.concat([df_qp, df_lp, df_gqp], ignore_index=True, sort=False)
 
     return df_merged
 
