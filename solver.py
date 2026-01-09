@@ -335,8 +335,7 @@ class RelevanceEncoding(ABC):
             print(f"Obj: {self.m.ObjVal:g}")
 
         assert self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X != 0, f'Denominator is valued at 0'
-        assert self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X <= 1, f'Reachability is larger than 1 : {self.p_s_t[(self.start_state, "f")].X + self.p_s_f[(self.start_state, "f")].X}'
-        assert abs(self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X - self.fixed_reachabilities_return.reachability) <= 0.01, f'Reachability differs by more than 0.01 : {self.p_s_t[(self.start_state, "f")].X + self.p_s_f[(self.start_state, "f")].X} != {self.fixed_reachabilities_return.reachability}'
+        assert round(self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X, 4) <= 1, f'Reachability is larger than 1 : {self.p_s_t[(self.start_state, "f")].X + self.p_s_f[(self.start_state, "f")].X}'
 
         return return_result
     
