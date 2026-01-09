@@ -1,6 +1,7 @@
 import pandas as pd
 import networkx as nx
 from networkx.drawing.nx_agraph import to_agraph
+from gurobipy import GRB
 
 import pickle
 from pathlib import Path
@@ -15,7 +16,7 @@ seed = 42
 random.seed(seed)
 
 
-from Result import PrismResult, GurobiResult
+from Result import PrismResult, GurobiResult, GurobiResultLowerUpper
 from PrismParser import PrismParser, StormParser
 from solver import QuadraticEncoding, LinearEncoding, GeneralQuadraticEncoding
 
@@ -158,12 +159,13 @@ def write_paths(file_path, model_paths, append=False):
 def run_experiment(param):
     function = param[0]
     model = param[1]
-    arg = param[2]
-    name = param[3]
+    arg = param[2:]
+    # name = param[3]
+    # sense = param[4]
     
-    print(f'Call {function} with model {model} ({name}) and arg {arg}')
+    print(f'Call {function} with model {model} and arg {arg}')
 
-    return function(model, arg, name)
+    return function(model, arg)
 
 """
 State can be "positive" or loc={i}.
@@ -227,7 +229,10 @@ def follow_path(model, path, name=""):
     
     return parser.call(f'Pmax=? [(F "positive") & ({construct_path(path[1:])})]', name)
 
-def importance_state(model, via_state, name) -> GurobiResult:
+def importance_state(model, arg) -> GurobiResultLowerUpper:
+    assert len(arg) == 2
+    via_state = arg[0]
+    name = arg[1]
     target_state = [s for s in model if 'positive' in s]
     assert len(target_state) == 1
     qp = QuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
@@ -265,6 +270,41 @@ def importance_state(model, via_state, name) -> GurobiResult:
 
     return df_merged
 
+def importance_state_sense(model, arg) -> GurobiResult:
+    assert len(arg) == 3
+    via_state = arg[0]
+    name = arg[1]
+    sense = arg[2]
+    target_state = [s for s in model if 'positive' in s]
+    assert len(target_state) == 1
+    qp = QuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
+    df_qp = qp.solve(sense=sense).df()
+    df_qp.insert(0, 'name', [name])
+    df_qp.insert(1, 'states', [str(len(model.nodes))])
+    df_qp.insert(2, 'transitions', [str(len(model.edges))])
+    df_qp.insert(3, 'encoding', ['QP'])
+    df_qp.insert(4, 'sense', [sense])
+    
+    lp = LinearEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
+    df_lp = lp.solve(sense=sense).df()
+    df_lp.insert(0, 'name', [name])
+    df_lp.insert(1, 'states', [str(len(model.nodes))])
+    df_lp.insert(2, 'transitions', [str(len(model.edges))])
+    df_lp.insert(3, 'encoding', ['LP'])
+    df_lp.insert(4, 'sense', [sense])
+    
+    gqp = GeneralQuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
+    df_gqp = gqp.solve(sense=sense).df()
+    df_gqp.insert(0, 'name', [name])
+    df_gqp.insert(1, 'states', [str(len(model.nodes))])
+    df_gqp.insert(2, 'transitions', [str(len(model.edges))])
+    df_gqp.insert(3, 'encoding', ['GQP'])
+    df_gqp.insert(4, 'sense', [sense])
+    
+    df_merged = pd.concat([df_qp, df_lp, df_gqp], ignore_index=True, sort=False)
+    
+    return df_merged
+    
 def manual_execution():
     assert args
     # manual tests
@@ -356,9 +396,11 @@ if __name__ == '__main__':
             max_pop = int(str(e).replace('out/models/model_epidemic', '').replace('_model-it_0.pickle', ''))
             vacc_states = list([s for s in model.nodes() if s[0] == max_pop and s[1] == 1 and nx.has_path(model, 'q0: start', 'positive')])
             print("For model ", model, "there are", len(vacc_states), "states")
-            experiments.extend([(importance_state, model, s, e) for s in random.sample(vacc_states, k = min(args.samples, len(vacc_states)))])
+            experiments.extend([(importance_state_sense, model, s, e, GRB.MINIMIZE) for s in random.sample(vacc_states, k = min(args.samples, len(vacc_states)))])
+            experiments.extend([(importance_state_sense, model, s, e, GRB.MAXIMIZE) for s in random.sample(vacc_states, k = min(args.samples, len(vacc_states)))])
         else:
-            experiments.extend([(importance_state, model, s, e) for s in random.sample(list(model.nodes()), k = min(args.samples, len(model.nodes)))])
+            experiments.extend([(importance_state_sense, model, s, e, GRB.MINIMIZE) for s in random.sample(list(model.nodes()), k = min(args.samples, len(model.nodes)))])
+            experiments.extend([(importance_state_sense, model, s, e, GRB.MAXIMIZE) for s in random.sample(list(model.nodes()), k = min(args.samples, len(model.nodes)))])
         continue
         # experiments.extend([(reach_state, e, f'loc={s}') for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
         # experiments.extend([(avoid_positive_until_state, e, s) for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
