@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from Result import GurobiResult, GurobiResultLowerUpper
 from fixed_mdp import *
 
-M = 1e12
+M = 1e14
 
 def unroll(model : nx.MultiDiGraph, via_state : str, start_state = None) -> nx.MultiDiGraph:
     """Function to unroll model around via_state and, if start_state is given, prune all states that can not be reached from start_state.
