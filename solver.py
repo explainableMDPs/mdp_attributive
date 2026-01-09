@@ -387,7 +387,7 @@ class OptimalReachabilityRelevanceEncoding(RelevanceEncoding):
     
     def solve_lower_upper(self):
         r = super().solve_lower_upper()
-        assert abs(r.reachability_value - r.reachability_value) <= 1e-3, f'{r.reachability_value} - {r.reachability_value} = {abs(r.reachability_value - r.reachability_value)}'
+        assert abs(r.lower_reachability_value - r.upper_reachability_value) <= 1e-3, f'{r.lower_reachability_value} - {r.upper_reachability_value} = {abs(r.lower_reachability_value - r.upper_reachability_value)}'
         return r
     
 class LinearEncoding(OptimalReachabilityRelevanceEncoding):
