@@ -283,6 +283,9 @@ def importance_state_sense(model, arg) -> GurobiResult:
     sense = arg[2]
     target_state = [s for s in model if 'positive' in s]
     assert len(target_state) == 1
+    
+    result_list = []
+    
     qp = QuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
     df_qp = qp.solve(sense=sense).df()
     df_qp.insert(0, 'name', [name])
@@ -290,6 +293,7 @@ def importance_state_sense(model, arg) -> GurobiResult:
     df_qp.insert(2, 'transitions', [str(len(model.edges))])
     df_qp.insert(3, 'encoding', ['QP'])
     df_qp.insert(4, 'sense', [sense])
+    result_list.append(df_qp)
     
     lp = LinearEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
     df_lp = lp.solve(sense=sense).df()
@@ -298,16 +302,18 @@ def importance_state_sense(model, arg) -> GurobiResult:
     df_lp.insert(2, 'transitions', [str(len(model.edges))])
     df_lp.insert(3, 'encoding', ['LP'])
     df_lp.insert(4, 'sense', [sense])
+    result_list.append(df_lp)
     
-    gqp = GeneralQuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
-    df_gqp = gqp.solve(sense=sense).df()
-    df_gqp.insert(0, 'name', [name])
-    df_gqp.insert(1, 'states', [str(len(model.nodes))])
-    df_gqp.insert(2, 'transitions', [str(len(model.edges))])
-    df_gqp.insert(3, 'encoding', ['GQP'])
-    df_gqp.insert(4, 'sense', [sense])
+    # gqp = GeneralQuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
+    # df_gqp = gqp.solve(sense=sense).df()
+    # df_gqp.insert(0, 'name', [name])
+    # df_gqp.insert(1, 'states', [str(len(model.nodes))])
+    # df_gqp.insert(2, 'transitions', [str(len(model.edges))])
+    # df_gqp.insert(3, 'encoding', ['GQP'])
+    # df_gqp.insert(4, 'sense', [sense])
+    # result_list.append(df_gqp)
     
-    df_merged = pd.concat([df_qp, df_lp, df_gqp], ignore_index=True, sort=False)
+    df_merged = pd.concat(result_list, ignore_index=True, sort=False)
     
     return df_merged
     
