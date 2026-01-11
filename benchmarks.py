@@ -254,13 +254,13 @@ def importance_state(model, arg) -> GurobiResultLowerUpper:
     df_lp.insert(3, 'encoding', ['LP'])
     result_list.append(df_lp)
     
-    gqp = GeneralQuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
-    df_gqp = gqp.solve_lower_upper().df()
-    df_gqp.insert(0, 'name', [name])
-    df_gqp.insert(1, 'states', [str(len(model.nodes))])
-    df_gqp.insert(2, 'transitions', [str(len(model.edges))])
-    df_gqp.insert(3, 'encoding', ['GQP'])
-    result_list.append(df_gqp)
+    # gqp = GeneralQuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
+    # df_gqp = gqp.solve_lower_upper().df()
+    # df_gqp.insert(0, 'name', [name])
+    # df_gqp.insert(1, 'states', [str(len(model.nodes))])
+    # df_gqp.insert(2, 'transitions', [str(len(model.edges))])
+    # df_gqp.insert(3, 'encoding', ['GQP'])
+    # result_list.append(df_gqp)
     
     # return df_lp
 
