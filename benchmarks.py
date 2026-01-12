@@ -286,14 +286,14 @@ def importance_state_sense(model, arg) -> GurobiResult:
     
     result_list = []
     
-    qp = QuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
-    df_qp = qp.solve(sense=sense).df()
-    df_qp.insert(0, 'name', [name])
-    df_qp.insert(1, 'states', [str(len(model.nodes))])
-    df_qp.insert(2, 'transitions', [str(len(model.edges))])
-    df_qp.insert(3, 'encoding', ['QP'])
-    df_qp.insert(4, 'sense', [sense])
-    result_list.append(df_qp)
+    # qp = QuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
+    # df_qp = qp.solve(sense=sense).df()
+    # df_qp.insert(0, 'name', [name])
+    # df_qp.insert(1, 'states', [str(len(model.nodes))])
+    # df_qp.insert(2, 'transitions', [str(len(model.edges))])
+    # df_qp.insert(3, 'encoding', ['QP'])
+    # df_qp.insert(4, 'sense', [sense])
+    # result_list.append(df_qp)
     
     lp = LinearEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
     df_lp = lp.solve(sense=sense).df()
@@ -412,7 +412,7 @@ if __name__ == '__main__':
             experiments.extend([(importance_state_sense, model, s, e, GRB.MAXIMIZE) for s in random.sample(vacc_states, k = min(args.samples, len(vacc_states)))])
         else:
             experiments.extend([(importance_state_sense, model, s, e, GRB.MINIMIZE) for s in random.sample(list(model.nodes()), k = min(args.samples, len(model.nodes)))])
-            experiments.extend([(importance_state_sense, model, s, e, GRB.MAXIMIZE) for s in random.sample(list(model.nodes()), k = min(args.samples, len(model.nodes)))])
+            # experiments.extend([(importance_state_sense, model, s, e, GRB.MAXIMIZE) for s in random.sample(list(model.nodes()), k = min(args.samples, len(model.nodes)))])
         continue
         # experiments.extend([(reach_state, e, f'loc={s}') for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
         # experiments.extend([(avoid_positive_until_state, e, s) for s in random.sample(list(range(len(model.nodes()))), k = args.samples)])
