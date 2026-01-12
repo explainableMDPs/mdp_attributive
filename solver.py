@@ -382,7 +382,8 @@ class OptimalReachabilityRelevanceEncoding(RelevanceEncoding):
     
     def solve_helper(self, sense=GRB.MAXIMIZE):
         r = super().solve_helper(sense)
-        assert abs(self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X - self.fixed_reachabilities_return.reachability) <= 0.01, f'Reachability differs by more than 0.01 : {self.p_s_t[(self.start_state, "f")].X + self.p_s_f[(self.start_state, "f")].X} != {self.fixed_reachabilities_return.reachability}'
+        if self.m.status == GRB.OPTIMAL:
+            assert abs(self.p_s_t[(self.start_state, 'f')].X + self.p_s_f[(self.start_state, 'f')].X - self.fixed_reachabilities_return.reachability) <= 0.01, f'Reachability differs by more than 0.01 : {self.p_s_t[(self.start_state, "f")].X + self.p_s_f[(self.start_state, "f")].X} != {self.fixed_reachabilities_return.reachability}'
         return r
     
     def solve_lower_upper(self):
