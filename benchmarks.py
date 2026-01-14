@@ -410,6 +410,9 @@ if __name__ == '__main__':
             print("For model ", model, "there are", len(vacc_states), "states")
             experiments.extend([(importance_state_sense, model, s, e, GRB.MINIMIZE) for s in random.sample(vacc_states, k = min(args.samples, len(vacc_states)))])
             experiments.extend([(importance_state_sense, model, s, e, GRB.MAXIMIZE) for s in random.sample(vacc_states, k = min(args.samples, len(vacc_states)))])
+        if "spotify" in str(e):
+            song_states = [s for s in model.nodes() if 'song' in s]
+            experiments.extend([(importance_state_sense, model, s, e, GRB.MINIMIZE) for s in random.sample(song_states, k = min(args.samples, len(song_states)))])
         else:
             experiments.extend([(importance_state_sense, model, s, e, GRB.MINIMIZE) for s in random.sample(list(model.nodes()), k = min(args.samples, len(model.nodes)))])
             # experiments.extend([(importance_state_sense, model, s, e, GRB.MAXIMIZE) for s in random.sample(list(model.nodes()), k = min(args.samples, len(model.nodes)))])
