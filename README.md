@@ -39,21 +39,18 @@ To run the experiments, run the ```benchmarks.py``` script, individual experimen
 The benchmark script offers several, among others:
 
 ```
-  -h, --help            show this help message and exit
   -t TIMEOUT, --timeout TIMEOUT
-                        Timeout for PRISM (in sec.)
-  -sa SAMPLES, --samples SAMPLES
-                        Number of states to sample for attribution computation
-  -i ITERATIONS, --iterations ITERATIONS
-                        Iterations for each model
-  -c CORES, --cores CORES
-                        Cores to use to parallelize experiments
-  -e EXPERIMENTS [EXPERIMENTS ...], --experiments EXPERIMENTS [EXPERIMENTS ...]
-                        Name of experiments to run
-  -rm, --rebuild_models
-                        Rebuild models, implies rebuilding strategies
-  -mi MODEL_ITERATIONS, --model_iterations MODEL_ITERATIONS
-                        Number of models to generate for each setting
+                        
+  -sa SAMPLES, --samples SAMPLES Number of states to sample for attribution computation
+  
+  -c CORES, --cores CORES Cores to use to parallelize experiments
+  
+  -e EXPERIMENTS [EXPERIMENTS ...], --experiments EXPERIMENTS [EXPERIMENTS ...] Name of experiments to run
+  
+  -rm, --rebuild_models Rebuild models, implies rebuilding strategies
+  
+  -mi MODEL_ITERATIONS, --model_iterations MODEL_ITERATIONS Number of models to generate for each setting
+  
   -as, --all_spotify    All spotify models in steps of 100 are generated
 ```
 ## Datasets
