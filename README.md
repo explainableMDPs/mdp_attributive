@@ -37,6 +37,7 @@ This repository contains all files to reproduce the results reported in the pape
 To run the experiments, run the ```benchmarks.py``` script, individual experiments can directly be run by calling the solver in ```solver.py```.
 
 The benchmark script offers several, among others:
+
 ```
   -h, --help            show this help message and exit
   -t TIMEOUT, --timeout TIMEOUT
