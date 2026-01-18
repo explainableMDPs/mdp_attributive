@@ -349,7 +349,7 @@ def manual_execution():
 if __name__ == '__main__':  
     parser = argparse.ArgumentParser(
                     prog = 'benchmarks',
-                    description = "File to trigger benchmarks for CE generation in MDP's")
+                    description = "File to trigger benchmarks for attribution-based explanations for MDP's")
     parser.add_argument('-t', '--timeout', help = "Timeout for PRISM (in sec.)", type=int, default = 60)
     parser.add_argument('-sa', '--samples', help = "Number of states to sample", type=int, default = 10)
     parser.add_argument('-i', '--iterations', help = "Iterations for each model", type=int, default = 1)
