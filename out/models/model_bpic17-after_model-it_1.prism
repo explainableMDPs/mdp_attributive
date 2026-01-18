@@ -1,0 +1,412 @@
+mdp
+module model
+loc : [0..142] init 0;
+[env] loc=0 -> 
+ 1.0 : (loc'=1);
+[company] loc=1 -> 
+ 1.0 : (loc'=2);
+[env] loc=2 -> 
+ 0.6507368722277865 : (loc'=4) + 0.34926312777221347 : (loc'=3);
+[company] loc=3 -> 
+ 1.0 : (loc'=5);
+[A_Submitted] loc=4 -> 
+ 1.0 : (loc'=6);
+[env] loc=5 -> 
+ 1.0 : (loc'=7);
+[env] loc=6 -> 
+ 1.0 : (loc'=8);
+[company] loc=7 -> 
+ 1.0 : (loc'=9);
+[company] loc=8 -> 
+ 1.0 : (loc'=10);
+[env] loc=9 -> 
+ 1.0 : (loc'=11);
+[env] loc=10 -> 
+ 1.0 : (loc'=12);
+[company] loc=11 -> 
+ 1.0 : (loc'=13);
+[company] loc=12 -> 
+ 1.0 : (loc'=14);
+[env] loc=13 -> 
+ 0.9934453092994674 : (loc'=15) + 0.006554690700532569 : (loc'=16);
+[env] loc=14 -> 
+ 1.0 : (loc'=17);
+[company] loc=15 -> 
+ 0.9410309278350516 : (loc'=19) + 0.053195876288659794 : (loc'=18) + 0.00577319587628866 : (loc'=20);
+[O_Cancelled] loc=16 -> 
+ 1.0 : (loc'=22);
+[A_CancelledCUSTOMER] loc=16 -> 
+ 1.0 : (loc'=21);
+[TIMEOUT] loc=16 -> 
+ 1.0 : (loc'=38);
+[company] loc=17 -> 
+ 1.0 : (loc'=23);
+[env] loc=18 -> 
+ 0.9767441860465116 : (loc'=24) + 0.023255813953488372 : (loc'=25);
+[env] loc=19 -> 
+ 0.8885987815491732 : (loc'=27) + 0.1114012184508268 : (loc'=26);
+[env] loc=20 -> 
+ 0.9655172413793104 : (loc'=28) + 0.034482758620689655 : (loc'=88);
+[env] loc=21 -> 
+ 1.0 : (loc'=29);
+[env] loc=22 -> 
+ 1.0 : (loc'=30);
+[env] loc=23 -> 
+ 0.997141600703606 : (loc'=31) + 0.0028583992963940193 : (loc'=16);
+[company] loc=24 -> 
+ 0.9603174603174603 : (loc'=33) + 0.023809523809523808 : (loc'=34) + 0.015873015873015872 : (loc'=32);
+[O_Cancelled] loc=25 -> 
+ 1.0 : (loc'=35);
+[A_CancelledCUSTOMER] loc=25 -> 
+ 1.0 : (loc'=21);
+[company] loc=26 -> 
+ 0.9575596816976127 : (loc'=36) + 0.026525198938992044 : (loc'=37) + 0.015915119363395226 : (loc'=32);
+[W_Callafteroffers] loc=27 -> 
+ 0.920568122041031 : (loc'=40) + 0.06996317727511836 : (loc'=39) + 0.009468700683850605 : (loc'=41);
+[TIMEOUT] loc=27 -> 
+ 1.0 : (loc'=38);
+[A_CancelledCUSTOMER] loc=27 -> 
+ 1.0 : (loc'=21);
+[W_Callafteroffers] loc=28 -> 
+ 0.8823529411764706 : (loc'=40) + 0.11764705882352941 : (loc'=39);
+[TIMEOUT] loc=28 -> 
+ 1.0 : (loc'=38);
+[A_CancelledCUSTOMER] loc=28 -> 
+ 1.0 : (loc'=21);
+[negative] loc=29 -> 
+ 1.0 : (loc'=42);
+[company] loc=30 -> 
+ 1.0 : (loc'=43);
+[company] loc=31 -> 
+ 0.9230429988974642 : (loc'=45) + 0.07695700110253584 : (loc'=44);
+[env] loc=32 -> 
+ 1.0 : (loc'=46);
+[env] loc=33 -> 
+ 0.9669421487603306 : (loc'=47) + 0.03305785123966942 : (loc'=48);
+[env] loc=34 -> 
+ 1.0 : (loc'=49);
+[env] loc=35 -> 
+ 1.0 : (loc'=50);
+[env] loc=36 -> 
+ 0.9827898550724637 : (loc'=51) + 0.017210144927536232 : (loc'=52);
+[env] loc=37 -> 
+ 1.0 : (loc'=53);
+[env] loc=38 -> 
+ 1.0 : (loc'=54);
+[env] loc=39 -> 
+ 0.5894039735099338 : (loc'=55) + 0.4105960264900662 : (loc'=56);
+[env] loc=40 -> 
+ 0.6194790486976217 : (loc'=57) + 0.38052095130237823 : (loc'=58);
+[env] loc=41 -> 
+ 0.5238095238095238 : (loc'=60) + 0.47619047619047616 : (loc'=59);
+[env] loc=43 -> 
+ 1.0 : (loc'=61);
+[env] loc=44 -> 
+ 0.9656160458452722 : (loc'=62) + 0.034383954154727794 : (loc'=25);
+[env] loc=45 -> 
+ 0.9376635736378777 : (loc'=64) + 0.06233642636212229 : (loc'=63);
+[company] loc=46 -> 
+ 0.2222222222222222 : (loc'=65) + 0.7777777777777778 : (loc'=19);
+[company] loc=47 -> 
+ 0.9914529914529915 : (loc'=66) + 0.008547008547008548 : (loc'=36);
+[W_Callafteroffers] loc=48 -> 
+ 1.0 : (loc'=67);
+[company] loc=49 -> 
+ 1.0 : (loc'=20);
+[company] loc=50 -> 
+ 1.0 : (loc'=45);
+[company] loc=51 -> 
+ 1.0 : (loc'=68);
+[W_Callincompletefiles] loc=52 -> 
+ 0.9454545454545454 : (loc'=69) + 0.05454545454545454 : (loc'=106);
+[company] loc=53 -> 
+ 0.8787878787878788 : (loc'=70) + 0.12121212121212122 : (loc'=20);
+[negative] loc=54 -> 
+ 1.0 : (loc'=42);
+[company] loc=55 -> 
+ 0.8921568627450981 : (loc'=36) + 0.10294117647058823 : (loc'=37) + 0.004901960784313725 : (loc'=32);
+[TIMEOUT] loc=56 -> 
+ 1.0 : (loc'=38);
+[A_CancelledCUSTOMER] loc=56 -> 
+ 1.0 : (loc'=21);
+[company] loc=57 -> 
+ 0.9194915254237288 : (loc'=71) + 0.07711864406779662 : (loc'=72) + 0.003389830508474576 : (loc'=126);
+[TIMEOUT] loc=58 -> 
+ 1.0 : (loc'=38);
+[A_CancelledCUSTOMER] loc=58 -> 
+ 1.0 : (loc'=21);
+[O_Cancelled] loc=58 -> 
+ 1.0 : (loc'=73);
+[company] loc=59 -> 
+ 0.8 : (loc'=74) + 0.2 : (loc'=37);
+[A_CancelledCUSTOMER] loc=60 -> 
+ 1.0 : (loc'=21);
+[TIMEOUT] loc=60 -> 
+ 1.0 : (loc'=38);
+[company] loc=61 -> 
+ 1.0 : (loc'=75);
+[company] loc=62 -> 
+ 0.9792284866468842 : (loc'=77) + 0.020771513353115726 : (loc'=76);
+[company] loc=63 -> 
+ 0.916030534351145 : (loc'=36) + 0.08396946564885496 : (loc'=78);
+[W_Callafteroffers] loc=64 -> 
+ 0.9287694013303769 : (loc'=80) + 0.06568736141906874 : (loc'=79) + 0.005543237250554324 : (loc'=81);
+[TIMEOUT] loc=64 -> 
+ 1.0 : (loc'=38);
+[A_CancelledCUSTOMER] loc=64 -> 
+ 1.0 : (loc'=21);
+[O_Cancelled] loc=64 -> 
+ 1.0 : (loc'=73);
+[env] loc=65 -> 
+ 1.0 : (loc'=82);
+[env] loc=66 -> 
+ 0.034482758620689655 : (loc'=26) + 0.9655172413793104 : (loc'=83);
+[env] loc=67 -> 
+ 1.0 : (loc'=84);
+[env] loc=68 -> 
+ 0.9855985598559855 : (loc'=86) + 0.0144014401440144 : (loc'=85);
+[env] loc=69 -> 
+ 1.0 : (loc'=87);
+[env] loc=70 -> 
+ 0.3793103448275862 : (loc'=27) + 0.6206896551724138 : (loc'=26);
+[env] loc=71 -> 
+ 0.9843317972350231 : (loc'=89) + 0.01566820276497696 : (loc'=52);
+[env] loc=72 -> 
+ 0.978021978021978 : (loc'=90) + 0.02197802197802198 : (loc'=25);
+[env] loc=73 -> 
+ 0.1282051282051282 : (loc'=30) + 0.8717948717948718 : (loc'=91);
+[env] loc=74 -> 
+ 1.0 : (loc'=92);
+[env] loc=75 -> 
+ 0.9756838905775076 : (loc'=93) + 0.0243161094224924 : (loc'=124);
+[env] loc=76 -> 
+ 0.7142857142857143 : (loc'=94) + 0.2857142857142857 : (loc'=95);
+[env] loc=77 -> 
+ 0.9495548961424333 : (loc'=96) + 0.050445103857566766 : (loc'=93);
+[env] loc=78 -> 
+ 0.9868421052631579 : (loc'=97) + 0.013157894736842105 : (loc'=25);
+[env] loc=79 -> 
+ 0.5454545454545454 : (loc'=56) + 0.45454545454545453 : (loc'=55);
+[env] loc=80 -> 
+ 0.5487914055505819 : (loc'=58) + 0.4512085944494181 : (loc'=84);
+[env] loc=81 -> 
+ 0.7 : (loc'=60) + 0.3 : (loc'=98);
+[company] loc=82 -> 
+ 1.0 : (loc'=99);
+[W_Callafteroffers] loc=83 -> 
+ 0.8316831683168316 : (loc'=100) + 0.15841584158415842 : (loc'=79) + 0.009900990099009901 : (loc'=41);
+[TIMEOUT] loc=83 -> 
+ 1.0 : (loc'=38);
+[A_CancelledCUSTOMER] loc=83 -> 
+ 1.0 : (loc'=21);
+[company] loc=84 -> 
+ 0.9130714745653574 : (loc'=36) + 0.08370895041854476 : (loc'=78) + 0.003219575016097875 : (loc'=126);
+[company] loc=85 -> 
+ 1.0 : (loc'=101);
+[O_Accepted] loc=86 -> 
+ 1.0 : (loc'=102);
+[W_Callincompletefiles] loc=86 -> 
+ 0.8817966903073287 : (loc'=104) + 0.1182033096926714 : (loc'=103);
+[A_CancelledCUSTOMER] loc=86 -> 
+ 1.0 : (loc'=21);
+[company] loc=87 -> 
+ 1.0 : (loc'=68);
+[company] loc=88 -> 
+ 1.0 : (loc'=36);
+[company] loc=89 -> 
+ 1.0 : (loc'=105);
+[company] loc=90 -> 
+ 0.9438202247191011 : (loc'=107) + 0.056179775280898875 : (loc'=108);
+[A_CancelledCUSTOMER] loc=91 -> 
+ 1.0 : (loc'=21);
+[TIMEOUT] loc=91 -> 
+ 1.0 : (loc'=38);
+[O_Cancelled] loc=91 -> 
+ 1.0 : (loc'=35);
+[W_Callafteroffers] loc=91 -> 
+ 1.0 : (loc'=40);
+[company] loc=92 -> 
+ 1.0 : (loc'=109);
+[W_Callafteroffers] loc=93 -> 
+ 0.9433962264150944 : (loc'=110) + 0.050314465408805034 : (loc'=39) + 0.006289308176100629 : (loc'=41);
+[TIMEOUT] loc=93 -> 
+ 1.0 : (loc'=38);
+[A_CancelledCUSTOMER] loc=93 -> 
+ 1.0 : (loc'=21);
+[company] loc=94 -> 
+ 1.0 : (loc'=111);
+[O_Cancelled] loc=95 -> 
+ 1.0 : (loc'=73);
+[company] loc=96 -> 
+ 0.996875 : (loc'=75) + 0.003125 : (loc'=36);
+[company] loc=97 -> 
+ 0.05333333333333334 : (loc'=20) + 0.9466666666666667 : (loc'=107);
+[company] loc=98 -> 
+ 1.0 : (loc'=112);
+[env] loc=99 -> 
+ 1.0 : (loc'=113);
+[env] loc=100 -> 
+ 0.5595238095238095 : (loc'=58) + 0.44047619047619047 : (loc'=84);
+[env] loc=101 -> 
+ 1.0 : (loc'=114);
+[env] loc=102 -> 
+ 1.0 : (loc'=115);
+[env] loc=103 -> 
+ 0.45614035087719296 : (loc'=117) + 0.543859649122807 : (loc'=116);
+[env] loc=104 -> 
+ 0.4357262103505843 : (loc'=118) + 0.5642737896494157 : (loc'=119);
+[env] loc=105 -> 
+ 0.9897003745318352 : (loc'=120) + 0.010299625468164793 : (loc'=85);
+[env] loc=106 -> 
+ 1.0 : (loc'=121);
+[env] loc=107 -> 
+ 0.43805309734513276 : (loc'=26) + 0.5619469026548672 : (loc'=93);
+[env] loc=108 -> 
+ 0.8 : (loc'=88) + 0.2 : (loc'=28);
+[env] loc=109 -> 
+ 0.875 : (loc'=122) + 0.125 : (loc'=85);
+[env] loc=110 -> 
+ 0.7133333333333334 : (loc'=58) + 0.2866666666666667 : (loc'=57);
+[env] loc=111 -> 
+ 1.0 : (loc'=123);
+[env] loc=112 -> 
+ 1.0 : (loc'=125);
+[company] loc=113 -> 
+ 1.0 : (loc'=111);
+[W_Callincompletefiles] loc=114 -> 
+ 0.9196787148594378 : (loc'=104) + 0.08032128514056225 : (loc'=103);
+[O_Accepted] loc=114 -> 
+ 1.0 : (loc'=102);
+[company] loc=115 -> 
+ 1.0 : (loc'=127);
+[company] loc=116 -> 
+ 1.0 : (loc'=101);
+[O_Accepted] loc=117 -> 
+ 1.0 : (loc'=102);
+[A_CancelledCUSTOMER] loc=117 -> 
+ 1.0 : (loc'=21);
+[company] loc=118 -> 
+ 1.0 : (loc'=101);
+[O_Accepted] loc=119 -> 
+ 1.0 : (loc'=102);
+[A_CancelledCUSTOMER] loc=119 -> 
+ 1.0 : (loc'=21);
+[O_Accepted] loc=120 -> 
+ 1.0 : (loc'=102);
+[W_Callincompletefiles] loc=120 -> 
+ 0.8873517786561265 : (loc'=104) + 0.11067193675889328 : (loc'=128) + 0.001976284584980237 : (loc'=129);
+[A_CancelledCUSTOMER] loc=120 -> 
+ 1.0 : (loc'=21);
+[company] loc=121 -> 
+ 1.0 : (loc'=130);
+[O_Accepted] loc=122 -> 
+ 1.0 : (loc'=102);
+[W_Callincompletefiles] loc=122 -> 
+ 1.0 : (loc'=103);
+[A_CancelledCUSTOMER] loc=122 -> 
+ 1.0 : (loc'=21);
+[company] loc=123 -> 
+ 1.0 : (loc'=77);
+[company] loc=124 -> 
+ 1.0 : (loc'=131);
+[company] loc=125 -> 
+ 1.0 : (loc'=132);
+[env] loc=126 -> 
+ 1.0 : (loc'=133);
+[env] loc=127 -> 
+ 1.0 : (loc'=134);
+[env] loc=128 -> 
+ 0.7678571428571429 : (loc'=116) + 0.23214285714285715 : (loc'=117);
+[env] loc=129 -> 
+ 1.0 : (loc'=135);
+[env] loc=130 -> 
+ 1.0 : (loc'=136);
+[env] loc=131 -> 
+ 1.0 : (loc'=137);
+[env] loc=132 -> 
+ 1.0 : (loc'=138);
+[company] loc=133 -> 
+ 1.0 : (loc'=19);
+[positive] loc=134 -> 
+ 1.0 : (loc'=139);
+[O_Accepted] loc=135 -> 
+ 1.0 : (loc'=102);
+[W_Callincompletefiles] loc=136 -> 
+ 1.0 : (loc'=140);
+[O_Accepted] loc=136 -> 
+ 1.0 : (loc'=102);
+[company] loc=137 -> 
+ 1.0 : (loc'=130);
+[W_Callincompletefiles] loc=138 -> 
+ 1.0 : (loc'=141);
+[O_Accepted] loc=138 -> 
+ 1.0 : (loc'=102);
+[env] loc=140 -> 
+ 1.0 : (loc'=118);
+[env] loc=141 -> 
+ 1.0 : (loc'=119);
+endmodule
+label "start" = loc=0;
+label "companystart" = loc=1;
+label "A_CreateApplication" = loc=2;
+label "companyA_CreateApplication" = loc=3;
+label "customerA_CreateApplication" = loc=4;
+label "A_Concept" = loc=5|loc=10;
+label "A_Submitted" = loc=6;
+label "companyA_Concept" = loc=7|loc=12;
+label "companyA_Submitted" = loc=8;
+label "A_Accepted" = loc=9|loc=14;
+label "companyA_Accepted" = loc=11|loc=17;
+label "O_CreateOffer0" = loc=13|loc=23;
+label "companyO_CreateOffer0" = loc=15|loc=31;
+label "customerO_CreateOffer0" = loc=16;
+label "O_CreateOffer1" = loc=18|loc=37|loc=43|loc=44|loc=72|loc=78;
+label "O_Sentmailandonline" = loc=19|loc=33|loc=45|loc=66|loc=70|loc=75|loc=77|loc=99|loc=107|loc=111;
+label "O_Sentonlineonly" = loc=20|loc=34|loc=108;
+label "A_CancelledCUSTOMER" = loc=21;
+label "O_Cancelled" = loc=22|loc=35|loc=73;
+label "companyO_CreateOffer1" = loc=24|loc=53|loc=61|loc=62|loc=90|loc=97;
+label "customerO_CreateOffer1" = loc=25;
+label "companyO_Sentmailandonline" = loc=26|loc=47|loc=63|loc=96|loc=113|loc=123|loc=124;
+label "customerO_Sentmailandonline" = loc=27|loc=48|loc=64|loc=83|loc=93;
+label "customerO_Sentonlineonly" = loc=28;
+label "customerA_CancelledCUSTOMER" = loc=29;
+label "companyO_Cancelled" = loc=30|loc=50;
+label "O_CreateOffer2" = loc=32|loc=76|loc=126;
+label "A_Validating" = loc=36|loc=71|loc=74|loc=101|loc=112|loc=131;
+label "TIMEOUT" = loc=38;
+label "W_CallafteroffersLONG" = loc=39|loc=79;
+label "W_CallafteroffersSHORT" = loc=40|loc=67|loc=80|loc=100|loc=110;
+label "W_CallafteroffersSUPERLONG" = loc=41|loc=81;
+label "negative" = loc=42;
+label "companyO_CreateOffer2" = loc=46|loc=94|loc=133;
+label "companyO_Sentonlineonly" = loc=49|loc=88;
+label "companyA_Validating" = loc=51|loc=89|loc=92|loc=125|loc=137;
+label "customerA_Validating" = loc=52|loc=114;
+label "customerTIMEOUT" = loc=54;
+label "companyW_CallafteroffersLONG" = loc=55;
+label "customerW_CallafteroffersLONG" = loc=56;
+label "companyW_CallafteroffersSHORT" = loc=57|loc=84;
+label "customerW_CallafteroffersSHORT" = loc=58;
+label "companyW_CallafteroffersSUPERLONG" = loc=59|loc=98;
+label "customerW_CallafteroffersSUPERLONG" = loc=60;
+label "O_CreateOffer3" = loc=65;
+label "O_Returned" = loc=68|loc=105|loc=109|loc=130|loc=132;
+label "W_CallincompletefilesSHORT" = loc=69|loc=104|loc=140|loc=141;
+label "companyO_CreateOffer3" = loc=82;
+label "companyO_Returned" = loc=85;
+label "customerO_Returned" = loc=86|loc=120|loc=122|loc=136|loc=138;
+label "companyW_CallincompletefilesSHORT" = loc=87|loc=118;
+label "customerO_Cancelled" = loc=91;
+label "customerO_CreateOffer2" = loc=95;
+label "O_Accepted" = loc=102;
+label "W_CallincompletefilesLONG" = loc=103|loc=106|loc=128;
+label "companyO_Accepted" = loc=115;
+label "companyW_CallincompletefilesLONG" = loc=116|loc=121;
+label "customerW_CallincompletefilesLONG" = loc=117;
+label "customerW_CallincompletefilesSHORT" = loc=119;
+label "A_Pending" = loc=127;
+label "W_CallincompletefilesSUPERLONG" = loc=129;
+label "customerA_Pending" = loc=134;
+label "customerW_CallincompletefilesSUPERLONG" = loc=135;
+label "positive" = loc=139;

@@ -1,0 +1,198 @@
+mdp
+module model
+loc : [0..64] init 0;
+[env] loc=0 -> 
+ 0.9696969696969697 : (loc'=2) + 0.030303030303030304 : (loc'=1);
+[company] loc=1 -> 
+ 1.0 : (loc'=3);
+[registered] loc=2 -> 
+ 1.0 : (loc'=4);
+[env] loc=3 -> 
+ 1.0 : (loc'=5);
+[env] loc=4 -> 
+ 1.0 : (loc'=6);
+[company] loc=5 -> 
+ 1.0 : (loc'=7);
+[company] loc=6 -> 
+ 1.0 : (loc'=8);
+[env] loc=7 -> 
+ 1.0 : (loc'=9);
+[env] loc=8 -> 
+ 1.0 : (loc'=10);
+[company] loc=9 -> 
+ 1.0 : (loc'=11);
+[company] loc=10 -> 
+ 1.0 : (loc'=3);
+[env] loc=11 -> 
+ 1.0 : (loc'=12);
+[company] loc=12 -> 
+ 1.0 : (loc'=13);
+[env] loc=13 -> 
+ 1.0 : (loc'=14);
+[Taskevent0] loc=14 -> 
+ 1.0 : (loc'=15);
+[env] loc=15 -> 
+ 0.9705882352941176 : (loc'=16) + 0.029411764705882353 : (loc'=21);
+[Givefeedback0] loc=16 -> 
+ 1.0 : (loc'=17);
+[env] loc=17 -> 
+ 1.0 : (loc'=18);
+[Taskevent1] loc=18 -> 
+ 1.0 : (loc'=19);
+[env] loc=19 -> 
+ 1.0 : (loc'=20);
+[Givefeedback1] loc=20 -> 
+ 1.0 : (loc'=22);
+[negative] loc=20 -> 
+ 1.0 : (loc'=26);
+[company] loc=21 -> 
+ 1.0 : (loc'=3);
+[env] loc=22 -> 
+ 1.0 : (loc'=23);
+[Taskevent2] loc=23 -> 
+ 1.0 : (loc'=24);
+[env] loc=24 -> 
+ 1.0 : (loc'=25);
+[negative] loc=25 -> 
+ 1.0 : (loc'=26);
+[Givefeedback2] loc=25 -> 
+ 1.0 : (loc'=27);
+[env] loc=27 -> 
+ 1.0 : (loc'=28);
+[Taskevent3] loc=28 -> 
+ 1.0 : (loc'=29);
+[env] loc=29 -> 
+ 1.0 : (loc'=30);
+[Givefeedback3] loc=30 -> 
+ 1.0 : (loc'=31);
+[negative] loc=30 -> 
+ 1.0 : (loc'=26);
+[env] loc=31 -> 
+ 1.0 : (loc'=32);
+[Taskevent4] loc=32 -> 
+ 1.0 : (loc'=33);
+[env] loc=33 -> 
+ 0.38095238095238093 : (loc'=34) + 0.6190476190476191 : (loc'=35);
+[company] loc=34 -> 
+ 1.0 : (loc'=36);
+[Givefeedback4] loc=35 -> 
+ 1.0 : (loc'=37);
+[env] loc=36 -> 
+ 1.0 : (loc'=38);
+[env] loc=37 -> 
+ 1.0 : (loc'=39);
+[company] loc=38 -> 
+ 1.0 : (loc'=40);
+[Taskevent5] loc=39 -> 
+ 1.0 : (loc'=41);
+[env] loc=40 -> 
+ 1.0 : (loc'=42);
+[env] loc=41 -> 
+ 1.0 : (loc'=43);
+[company] loc=42 -> 
+ 1.0 : (loc'=44);
+[company] loc=43 -> 
+ 0.8461538461538461 : (loc'=36) + 0.07692307692307693 : (loc'=44) + 0.07692307692307693 : (loc'=40);
+[env] loc=44 -> 
+ 0.6190476190476191 : (loc'=45) + 0.38095238095238093 : (loc'=51);
+[company] loc=45 -> 
+ 1.0 : (loc'=46);
+[env] loc=46 -> 
+ 0.19047619047619047 : (loc'=48) + 0.8095238095238095 : (loc'=47);
+[company] loc=47 -> 
+ 1.0 : (loc'=49);
+[negative] loc=48 -> 
+ 1.0 : (loc'=26);
+[env] loc=49 -> 
+ 1.0 : (loc'=50);
+[company] loc=50 -> 
+ 1.0 : (loc'=52);
+[waitingForSubjectAcceptance] loc=51 -> 
+ 1.0 : (loc'=53);
+[env] loc=53 -> 
+ 0.625 : (loc'=54) + 0.375 : (loc'=55);
+[company] loc=54 -> 
+ 1.0 : (loc'=56);
+[subjectAcceptanceReceived] loc=55 -> 
+ 1.0 : (loc'=57);
+[env] loc=56 -> 
+ 0.8333333333333334 : (loc'=58) + 0.16666666666666666 : (loc'=63);
+[env] loc=57 -> 
+ 0.25 : (loc'=59) + 0.75 : (loc'=62);
+[subjectAcceptanceReceived] loc=58 -> 
+ 1.0 : (loc'=57);
+[Resultsshared] loc=59 -> 
+ 1.0 : (loc'=60);
+[env] loc=60 -> 
+ 1.0 : (loc'=61);
+[company] loc=61 -> 
+ 1.0 : (loc'=46);
+[company] loc=62 -> 
+ 0.16666666666666666 : (loc'=56) + 0.8333333333333334 : (loc'=46);
+[company] loc=63 -> 
+ 1.0 : (loc'=46);
+endmodule
+label "start" = loc=0;
+label "companystart" = loc=1;
+label "customerstart" = loc=2;
+label "vpcAssignInstance" = loc=3;
+label "registered" = loc=4;
+label "companyvpcAssignInstance" = loc=5;
+label "companyregistered" = loc=6;
+label "vpcCreateUserOnInstance" = loc=7;
+label "activated" = loc=8;
+label "companyvpcCreateUserOnInstance" = loc=9;
+label "companyactivated" = loc=10;
+label "readyToStart" = loc=11;
+label "companyreadyToStart" = loc=12;
+label "started" = loc=13;
+label "customerstarted" = loc=14;
+label "Taskevent0" = loc=15;
+label "customerTaskevent0" = loc=16;
+label "Givefeedback0" = loc=17;
+label "customerGivefeedback0" = loc=18;
+label "Taskevent1" = loc=19;
+label "customerTaskevent1" = loc=20;
+label "companyTaskevent0" = loc=21;
+label "Givefeedback1" = loc=22;
+label "customerGivefeedback1" = loc=23;
+label "Taskevent2" = loc=24;
+label "customerTaskevent2" = loc=25;
+label "negative" = loc=26;
+label "Givefeedback2" = loc=27;
+label "customerGivefeedback2" = loc=28;
+label "Taskevent3" = loc=29;
+label "customerTaskevent3" = loc=30;
+label "Givefeedback3" = loc=31;
+label "customerGivefeedback3" = loc=32;
+label "Taskevent4" = loc=33;
+label "companyTaskevent4" = loc=34;
+label "customerTaskevent4" = loc=35;
+label "waitingForManualScores" = loc=36;
+label "Givefeedback4" = loc=37;
+label "companywaitingForManualScores" = loc=38;
+label "customerGivefeedback4" = loc=39;
+label "waitingForScores" = loc=40;
+label "Taskevent5" = loc=41;
+label "companywaitingForScores" = loc=42;
+label "companyTaskevent5" = loc=43;
+label "waitingForResultApproval" = loc=44;
+label "companywaitingForResultApproval" = loc=45;
+label "waitingForActivityReport" = loc=46;
+label "companywaitingForActivityReport" = loc=47;
+label "customerwaitingForActivityReport" = loc=48;
+label "finished" = loc=49;
+label "companyfinished" = loc=50;
+label "customerwaitingForResultApproval" = loc=51;
+label "positive" = loc=52;
+label "waitingForSubjectAcceptance" = loc=53;
+label "companywaitingForSubjectAcceptance" = loc=54;
+label "customerwaitingForSubjectAcceptance" = loc=55;
+label "Resultsautomaticallyshared" = loc=56;
+label "subjectAcceptanceReceived" = loc=57;
+label "customerResultsautomaticallyshared" = loc=58;
+label "customersubjectAcceptanceReceived" = loc=59;
+label "Resultsshared" = loc=60;
+label "companyResultsshared" = loc=61;
+label "companysubjectAcceptanceReceived" = loc=62;
+label "companyResultsautomaticallyshared" = loc=63;
