@@ -18,8 +18,7 @@ This repository contains all files to reproduce the results reported in the pape
 ├── journepy
 │   └── # Library for preprocessing
 ├── LogParser.py
-├── main.py
-├── modeltest.py
+├── modeltest.py # Uni tests
 ├── out
 │   ├── models
 │   │   └── # All computed Models
@@ -30,9 +29,9 @@ This repository contains all files to reproduce the results reported in the pape
 ├── plots.ipynb # File to re-generate presented plots, even without running experiments
 ├── README.md
 ├── requirements.txt # Requirements to re-run file
-├── Result.py
+├── Result.py 
 ├── run.sh
-└── solver.py
+└── solver.py # Encoding of optimization problem
 ```
 
 # Generating Attribution-based Explanations
