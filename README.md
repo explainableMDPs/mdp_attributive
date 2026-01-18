@@ -8,12 +8,9 @@ This repository contains all files to reproduce the results reported in the pape
 ├── data
 │   └── # Journey data
 ├── examples
-│   ├── a2c_cartpole.zip
-│   ├── gridworld_gym.ipynb
 │   ├── gurobi_encoding_multi.py
 │   ├── gurobi_encoding.py
-│   ├── intro-example.prism
-│   └── props.props
+│   └─── intro-example.prism
 ├── fixed_mdp.py
 ├── journepy
 │   └── # Library for preprocessing
