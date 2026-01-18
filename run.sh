@@ -1,3 +1,4 @@
-uv run benchmarks.py --experiments greps bpic12 bpic17-before bpic17-after epidemic4 epidemic5 epidemic6 epidemic7 epidemic8 epidemic9 epidemic10 --model_iterations 1 --iterations 10 --cores 50 --timeout 3600 --rebuild_models --samples 1000
-# python3 benchmarks.py --experiments spotify100 spotify500 spotify1000 spotify3000 spotify5000 spotify7000 --model_iterations 10 --iterations 20 --cores 50 --timeout 3600 --solver Storm --rebuild_paths
+uv run benchmarks.py --experiments greps bpic12 bpic17-both --model_iterations 1 --iterations 1 --samples 1000 --timeout 3600 --cores 50 --rebuild_models
+uv run benchmarks.py --experiments epidemic4 epidemic5 epidemic6 epidemic7 epidemic8 epidemic9 epidemic10 epidemic11 epidemic12 epidemic13 epidemic14 epidemic15 epidemic16 epidemic17 epidemic18 epidemic19 epidemic20 --model_iterations 1 --iterations 1 --samples 100 --cores 40 --rebuild_models 
+python3 benchmarks.py --experiments spotify1000 spotify2000 spotify3000 spotify4000 spotify5000 spotify6000 spotify7000 spotify8000 spotify9000 spotify10000 --model_iterations 10 --iterations 1 --cores 40 --timeout 3600 --rebuild_models
 #   spotify5000 spotify7000 spotify1000 spotify3000 spotify5000 spotify9000 --rebuild_models
