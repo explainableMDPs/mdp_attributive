@@ -254,15 +254,14 @@ def importance_state(model, arg) -> GurobiResultLowerUpper:
     df_lp.insert(3, 'encoding', ['LP'])
     result_list.append(df_lp)
     
-    # gqp = GeneralQuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
-    # df_gqp = gqp.solve_lower_upper().df()
-    # df_gqp.insert(0, 'name', [name])
-    # df_gqp.insert(1, 'states', [str(len(model.nodes))])
-    # df_gqp.insert(2, 'transitions', [str(len(model.edges))])
-    # df_gqp.insert(3, 'encoding', ['GQP'])
-    # result_list.append(df_gqp)
+    gqp = GeneralQuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
+    df_gqp = gqp.solve_lower_upper().df()
+    df_gqp.insert(0, 'name', [name])
+    df_gqp.insert(1, 'states', [str(len(model.nodes))])
+    df_gqp.insert(2, 'transitions', [str(len(model.edges))])
+    df_gqp.insert(3, 'encoding', ['GQP'])
+    result_list.append(df_gqp)
     
-    # return df_lp
 
     # if (df_lp['status'] == df_qp['status']).all() and False:
     #     # check for 0.0011 as 0.001 is precision, but is periodic (thus represented as 0.0010...01) -> compare against 0.0011
@@ -286,14 +285,14 @@ def importance_state_sense(model, arg) -> GurobiResult:
     
     result_list = []
     
-    # qp = QuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
-    # df_qp = qp.solve(sense=sense).df()
-    # df_qp.insert(0, 'name', [name])
-    # df_qp.insert(1, 'states', [str(len(model.nodes))])
-    # df_qp.insert(2, 'transitions', [str(len(model.edges))])
-    # df_qp.insert(3, 'encoding', ['QP'])
-    # df_qp.insert(4, 'sense', [sense])
-    # result_list.append(df_qp)
+    qp = QuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
+    df_qp = qp.solve(sense=sense).df()
+    df_qp.insert(0, 'name', [name])
+    df_qp.insert(1, 'states', [str(len(model.nodes))])
+    df_qp.insert(2, 'transitions', [str(len(model.edges))])
+    df_qp.insert(3, 'encoding', ['QP'])
+    df_qp.insert(4, 'sense', [sense])
+    result_list.append(df_qp)
     
     lp = LinearEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
     df_lp = lp.solve(sense=sense).df()
@@ -304,14 +303,14 @@ def importance_state_sense(model, arg) -> GurobiResult:
     df_lp.insert(4, 'sense', [sense])
     result_list.append(df_lp)
     
-    # gqp = GeneralQuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
-    # df_gqp = gqp.solve(sense=sense).df()
-    # df_gqp.insert(0, 'name', [name])
-    # df_gqp.insert(1, 'states', [str(len(model.nodes))])
-    # df_gqp.insert(2, 'transitions', [str(len(model.edges))])
-    # df_gqp.insert(3, 'encoding', ['GQP'])
-    # df_gqp.insert(4, 'sense', [sense])
-    # result_list.append(df_gqp)
+    gqp = GeneralQuadraticEncoding(model, 'q0: start', via_state=via_state, target_state=target_state[0], debug=True, timeout=args.timeout)
+    df_gqp = gqp.solve(sense=sense).df()
+    df_gqp.insert(0, 'name', [name])
+    df_gqp.insert(1, 'states', [str(len(model.nodes))])
+    df_gqp.insert(2, 'transitions', [str(len(model.edges))])
+    df_gqp.insert(3, 'encoding', ['GQP'])
+    df_gqp.insert(4, 'sense', [sense])
+    result_list.append(df_gqp)
     
     df_merged = pd.concat(result_list, ignore_index=True, sort=False)
     
