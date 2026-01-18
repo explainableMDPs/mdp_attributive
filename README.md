@@ -2,6 +2,7 @@
 This repository contains all files to reproduce the results reported in the paper `ttribution-based Explanations for Markov Decision Processes' submitted to IJCAI 2026.
 
 # Artifact Structure
+```
 .
 ├── benchmarks.py
 ├── data
@@ -32,6 +33,7 @@ This repository contains all files to reproduce the results reported in the pape
 ├── Result.py
 ├── run.sh
 └── solver.py
+```
 
 # Generating Attribution-based Explanations
 To run the experiments, run the ```benchmarks.py``` script, individual experiments can directly be run by calling the solver in ```solver.py```.
