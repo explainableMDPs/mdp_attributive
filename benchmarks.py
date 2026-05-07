@@ -449,12 +449,3 @@ if __name__ == '__main__':
     # result = [run_experiment_diverse(e) for e in experiments]
     result = stored_results
     print("Done")
-    
-    
-# TODO: current path construction breaks for spotify - not sure that paths are in sub-set contained
-# TODO: all (actual) paths != 0 probability
-# TODO: test prism settings - e.g. maxiters etc.
-
-
-# TODO check learning for MultiDiGraph problem - they return just DiGraph
-# TODO clean benchmarks setting here
