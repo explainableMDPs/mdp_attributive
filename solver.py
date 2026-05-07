@@ -720,8 +720,24 @@ def paper_example():
     assert r['upper_importance_value'].iloc[0] == 1, r['lower_importance_value'].iloc[0]
     return r
 
+def paper_example_plot():
+    mdp = paper_example_mdp()
+    
+    qp = GeneralQuadraticEncoding(mdp, 'q0: start_customer', 'application', 'positive', debug=True)
+    print(qp.solve_lower_upper().df())
+    assert False
+    
+    import pandas as pd 
+    df_results = pd.DataFrame()
+    for s in mdp.nodes():
+        qp = GeneralQuadraticEncoding(mdp, 'q0: start_customer', s, 'positive', debug=True)
+        r = qp.solve_lower_upper().df()
+        df_results = pd.concat([df_results, r])
+    df_results.to_csv("out/results.csv")
+    
+
 def epidemic_influence_example():
-    max_pop = 4
+    max_pop = 8
     mdp = epidemic_influence_mdp(max_pop, debug=True)
     # TODO look at reachable MDP from (max_pop, 0, 2*max_pop)
     # TODO plot MDP with dot layout
@@ -814,10 +830,6 @@ if __name__ == '__main__':
     qp = QuadraticEncoding(mdp, 's0', 's2', 'st', debug=True)
     print(qp.solve_lower_upper().df())
 
-
-# TODO: Do I need all 4 cases in problem?
-# TODO assert that first objective is optimal for reachability
 # TODO rewrite into one set of variables p_s
-# TODO think about if run whole thing on doubled model or original
 # TODO think about how to transfer to initial states if not all contained
 # TODO BPIC - why self-loops in states from company?
