@@ -1,5 +1,5 @@
 # Attribution-based Explanations for Markov Decision Processes
-This repository contains all files to reproduce the results reported in the paper `Attribution-based Explanations for Markov Decision Processes' submitted to IJCAI 2026.
+This repository contains all files to reproduce the results reported in the paper `Attribution-based Explanations for Markov Decision Processes' accepted at IJCAI 2026.
 
 # Artifact Structure
 ```
